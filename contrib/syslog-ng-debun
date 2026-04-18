@@ -235,9 +235,9 @@ else
 	syslogrealbin=${binprefix}/sbin/syslog-ng
 fi
 
-run_timeout () {
+run_with_timeout () {
   # Cross-platform timeout function
-  # run_timeout [timeout_sec] command
+  # run_with_timeout [timeout_sec] command
   local timeout_sec
   case "$1" in
     '')        echo "Error: No command passed" >> ${tmpdir}/syslog-ng.debun.txt ; return 1 ;;
@@ -778,10 +778,10 @@ acquire_syslog_stats () {
 	#handy-dandy delay magic, triggered when we'd step on our own foot
 	[ -f ${tmpdir}/syslog.stats.${tsdata} ] && sleep 5 && tsdata=$( timestamp )
 
-	run_timeout ${syslogngctlbin} stats > ${tmpdir}/syslog.stats.${tsdata} 2>&1
+	run_with_timeout ${syslogngctlbin} stats > ${tmpdir}/syslog.stats.${tsdata} 2>&1
 	echo ${syslogngctlbin} stats
 	tsdata=$( timestamp )
-	run_timeout ${syslogngctlbin} query get "*" > ${tmpdir}/syslog.query.all.${tsdata} 2>/dev/null
+	run_with_timeout ${syslogngctlbin} query get "*" > ${tmpdir}/syslog.query.all.${tsdata} 2>/dev/null
 	echo ${syslogngctlbin} query get "*"
 	if [ -x ${syslogngquerybin} ]; then
 		#if we reach this brach, then syslog.query.all - as generated above - will not contain any meaningful data
@@ -804,11 +804,11 @@ acquire_syslog_info () {
 		acquire_syslog_stats
 	fi
 
-	if run_timeout ${syslogngctlbin} show-license-info > ${tmpdir}/syslog.license-usage 2>&1; then
-		run_timeout ${syslogngctlbin} show-license-info --json > ${tmpdir}/syslog.license-usage.json 2>/dev/null
+	if run_with_timeout ${syslogngctlbin} show-license-info > ${tmpdir}/syslog.license-usage 2>&1; then
+		run_with_timeout ${syslogngctlbin} show-license-info --json > ${tmpdir}/syslog.license-usage.json 2>/dev/null
 	fi
 	echo ${syslogngctlbin} show-license-info
-	run_timeout ${syslogngctlbin} credentials status > ${tmpdir}/syslog.credentials.status 2>&1
+	run_with_timeout ${syslogngctlbin} credentials status > ${tmpdir}/syslog.credentials.status 2>&1
 	echo ${syslogngctlbin} credentials status
 
 	for i in ${sngallpids} ; do
@@ -955,8 +955,8 @@ acquire_syslog_nprv () {
 }
 
 acquire_running_syslog_config() {
-	if run_timeout ${syslogngctlbin} config >/dev/null 2>&1; then
-		run_timeout ${syslogngctlbin} config -p > "${tmpdir}/syslog-ng.ctl.running.conf" 2>&1
+	if run_with_timeout ${syslogngctlbin} config >/dev/null 2>&1; then
+		run_with_timeout ${syslogngctlbin} config -p > "${tmpdir}/syslog-ng.ctl.running.conf" 2>&1
 		[ -z "$saveprivatekeys" ] && remove_passwords_from_file "${tmpdir}/syslog-ng.ctl.running.conf"
 	fi
 }
