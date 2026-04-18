@@ -237,8 +237,14 @@ fi
 
 run_timeout () {
   # Cross-platform timeout function
-  local timeout_sec="$1"
-  shift
+  # run_timeout [timeout_sec] command
+  local timeout_sec
+  case "$1" in
+    '')        return 1 ;;
+    *[!0-9.]*) timeout_sec=180 ;;
+    *)         timeout_sec="$1"; shift ;;
+  esac
+  # Does not support parallel runs (use $$)
   local timed_out_file="${tmpdir:-/tmp}/syslog-ng-debun_run-timeout.$$.flag"
   "$@" &
   local cmd_pid=$!
