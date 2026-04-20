@@ -1751,6 +1751,8 @@ if test "x$with_mongoc" = "xyes"; then
     CPPFLAGS="$CPPFLAGS $LIBMONGO_CFLAGS"
     AC_CHECK_DECLS([mongoc_uri_set_option_as_int32], [], [], [[#include $MONGOC_HEADER]])
     AC_CHECK_DECLS([MONGOC_URI_SERVERSELECTIONTIMEOUTMS], [], [], [[#include $MONGOC_HEADER]])
+    AC_CHECK_DECLS([bson_append_array_unsafe_begin], [], [], [[#include $MONGOC_HEADER
+#include <bson/bson.h>]])
     CPPFLAGS="$CPPFLAGS_SAVE"
 fi
 
