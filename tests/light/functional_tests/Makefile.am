@@ -19,6 +19,7 @@ EXTRA_DIST += \
 	tests/light/functional_tests/destination_drivers/unix_dgram_destination/test_unix_dgram_destination.py \
 	tests/light/functional_tests/destination_drivers/unix_stream_destination/test_unix_stream_destination.py \
 	tests/light/functional_tests/filters/rate-limit/test_rate_limit_filter_acceptance.py \
+	tests/light/functional_tests/filters/test_facility_and_level_filters.py \
 	tests/light/functional_tests/filters/test_filter_reference.py \
 	tests/light/functional_tests/filters/test_multiple_filters.py \
 	tests/light/functional_tests/logpath/__init__.py \
@@ -42,15 +43,21 @@ EXTRA_DIST += \
 	tests/light/functional_tests/parsers/db_parser/test_db_parser.py \
 	tests/light/functional_tests/parsers/group-lines-parser/test_group_lines_parser.py \
 	tests/light/functional_tests/parsers/mariadb-parser/test_mariadb_audit_parser.py \
+	tests/light/functional_tests/parsers/map-value-pairs/test_map_value_pairs.py \
 	tests/light/functional_tests/parsers/metrics-probe/test_metrics_probe.py \
 	tests/light/functional_tests/parsers/panos/test_panos_parser.py \
 	tests/light/functional_tests/parsers/postgresql-csvlog-parser/test_postgresql_csvlog_parser.py \
 	tests/light/functional_tests/parsers/regexp-parser/test_regexp_parser.py \
 	tests/light/functional_tests/parsers/sdata-parser/test_sdata_parser.py \
+	tests/light/functional_tests/performance/test_performance.py \
+	tests/light/functional_tests/python/sngtestmod.py \
+	tests/light/functional_tests/python/test_python.py \
 	tests/light/functional_tests/rewrites/cc-mask/test_cc_mask_and_cc_hash.py \
 	tests/light/functional_tests/rewrites/set-pri/test_set_pri.py \
 	tests/light/functional_tests/rewrites/set-tag/test_set_tag.py \
 	tests/light/functional_tests/source_drivers/file_source/test_acceptance.py \
+	tests/light/functional_tests/source_drivers/file_source/test_file_source.py \
+	tests/light/functional_tests/source_drivers/file_source/test_file_source_exclude.py \
 	tests/light/functional_tests/source_drivers/file_source/test_follow_freq_value.py \
 	tests/light/functional_tests/source_drivers/file_source/test_no_header_flag.py \
 	tests/light/functional_tests/source_drivers/generator_source/test_generator_source.py \
