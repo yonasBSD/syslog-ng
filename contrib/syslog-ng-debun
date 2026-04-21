@@ -12,7 +12,7 @@ LANG=en_US
 LC_ALL=C
 export LANG LC_ALL
 
-version="0.3.20.20220117"
+version="0.3.21.20260422"
 
 ### Check for "local" variable support
 if type local | grep builtin >/dev/null; then
@@ -236,30 +236,30 @@ else
 fi
 
 run_with_timeout () {
-  # Cross-platform timeout function
-  # run_with_timeout [timeout_sec] command
-  local timeout_sec
-  case "$1" in
-    '')        echo "Error: No command passed" >> ${tmpdir}/syslog-ng.debun.txt ; return 1 ;;
-    *[!0-9.]*) timeout_sec=180 ;;
-    *)         timeout_sec="$1"; shift ;;
-  esac
-  # Does not support parallel runs (use $$)
-  local timed_out_file="${tmpdir:-/tmp}/syslog-ng-debun_run-timeout.$$.flag"
-  "$@" &
-  local cmd_pid=$!
-  ( sleep "$timeout_sec" && touch "$timed_out_file" && kill "$cmd_pid" 2>/dev/null ) &
-  local watchdog_pid=$!
-  wait "$cmd_pid" 2>/dev/null
-  local ret=$?
-  kill "$watchdog_pid" 2>/dev/null
-  wait "$watchdog_pid" 2>/dev/null
-  if [ -f "$timed_out_file" ]; then
-    rm -f "$timed_out_file"
-    echo "Warning: Command timeout reached: ${timeout_sec}s: $*" >> ${tmpdir}/syslog-ng.debun.txt
-    ret=124
-  fi
-  return $ret
+	# Cross-platform timeout function
+	# run_with_timeout [timeout_sec] command
+	local timeout_sec
+	case "$1" in
+		'')        echo "Error: No command passed" >> ${tmpdir}/syslog-ng.debun.txt ; return 1 ;;
+		*[!0-9.]*) timeout_sec=180 ;;
+		*)         timeout_sec="$1"; shift ;;
+	esac
+	# Does not support parallel runs (use $$)
+	local timed_out_file="${tmpdir:-/tmp}/syslog-ng-debun_run-timeout.$$.flag"
+	"$@" &
+	local cmd_pid=$!
+	( sleep "$timeout_sec" && touch "$timed_out_file" && kill "$cmd_pid" 2>/dev/null ) &
+	local watchdog_pid=$!
+	wait "$cmd_pid" 2>/dev/null
+	local ret=$?
+	kill "$watchdog_pid" 2>/dev/null
+	wait "$watchdog_pid" 2>/dev/null
+	if [ -f "$timed_out_file" ]; then
+		rm -f "$timed_out_file"
+		echo "Warning: Command timeout reached: ${timeout_sec}s: $*" >> ${tmpdir}/syslog-ng.debun.txt
+		ret=124
+	fi
+	return $ret
 }
 
 debun_init () {
