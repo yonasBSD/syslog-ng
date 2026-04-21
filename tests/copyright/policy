@@ -39,7 +39,6 @@ Mk
 doc/man
 (_configs\.sed|\.project|\.cproject|config\.status)$
 stamp-h1$
-tests/functional/test\.conf$
 scripts/update-patterndb$
 (contrib|debian)
 packaging/debian
@@ -292,7 +291,6 @@ tests/light/functional_tests/destination_drivers/file_destination/test_logrotate
 news/create-newsfile.py
 news/next-pr-id.py
 dev-utils/plugin_skeleton_creator/create_plugin.sh
-tests/functional
 tests/unit
 tests/valgrind
 tests/build-log-cflags-propagation.sh

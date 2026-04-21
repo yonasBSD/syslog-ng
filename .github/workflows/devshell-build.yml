@@ -209,12 +209,6 @@ jobs:
           make light-self-check
           make light-check
 
-      - name: make func-test
-        # Skip func-test testing for now in none-devshell images or if no python support in the image yet
-        if: ${{ inputs.image-name == 'devshell' || inputs.use_all }}
-        working-directory: ./build
-        run: make VERBOSE=1 func-test
-
       - name: "Artifact: test-suite.log"
         uses: actions/upload-artifact@v4
         # Handle failures only for devshell images now (exclude i386 reporting for now, actions/upload-artifact@v4 has no i386 support)
