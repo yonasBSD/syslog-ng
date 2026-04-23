@@ -267,26 +267,26 @@ run_with_timeout () {
 			sleep 1
 			i=$((i + 1))
 		done
-		touch "${timed_out_file}" 2>/dev/null
+		touch "${timed_out_file}" >/dev/null 2>&1
 		if [ "${cmd_fingerprint:-unset}" = "$(pspoo "${cmd_pid}" 2>/dev/null)" ]; then
-			kill "${cmd_pid}" 2>/dev/null
+			kill "${cmd_pid}" >/dev/null 2>&1
 			sleep 2
 			if [ "${cmd_fingerprint:-unset}" = "$(pspoo "${cmd_pid}" 2>/dev/null)" ]; then
-				kill -9 "${cmd_pid}" 2>/dev/null
+				kill -9 "${cmd_pid}" >/dev/null 2>&1
 			fi
 		fi
 	) &
 	local watchdog_pid=$!
 	local watchdog_fingerprint="$(pspoo "${watchdog_pid}" 2>/dev/null)"
 
-	wait "${cmd_pid}" 2>/dev/null
+	wait "${cmd_pid}" >/dev/null 2>&1
 	local ret=$?
 	if [ "${watchdog_fingerprint:-unset}" = "$(pspoo "${watchdog_pid}" 2>/dev/null)" ]; then
-		kill "${watchdog_pid}" 2>/dev/null
+		kill "${watchdog_pid}" >/dev/null 2>&1
 	fi
 	wait "${watchdog_pid}" >/dev/null 2>&1
 	if [ -f "${timed_out_file}" ]; then
-		rm -f "${timed_out_file}"
+		rm -f "${timed_out_file}" >/dev/null 2>&1
 		printf 'Warning: Command timeout reached: %ss: %s\n' "${timeout_sec}" "${*}" >&4
 		ret=124
 	fi
