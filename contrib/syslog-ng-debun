@@ -58,6 +58,7 @@ lsof="lsof -p"
 no_lsof_fallback() { echo "No lsof in path."; }
 pscmd="ps auxwwwwwf"
 pseao="ps -eao"
+pspoo() { ps -p "${1}" -o pid= -o ppid= ; }
 cpiopdL="cpio -pdL"
 findL () { find -L "$@" ; }
 dfk="df -k"
@@ -237,25 +238,50 @@ fi
 
 run_with_timeout () {
 	# Cross-platform timeout function
-	# run_with_timeout [timeout_sec] command
-	local timeout_sec
+	# run_with_timeout [-t timeout_sec] command
+	local timeout_sec=180
+
 	case "$1" in
-		'')        echo "Error: No command passed" >&4 ; return 1 ;;
-		*[!0-9.]*) timeout_sec=180 ;;
-		*)         timeout_sec="$1"; shift ;;
+		'-t') 
+			case "$2" in
+				''|*[!0-9]*)
+					echo "Error: run_with_timeout: -t requires an integer argument" >&4
+					return 1 ;;
+				*)	timeout_sec="$2" ;;
+			esac
+			shift ; shift ;;
 	esac
-	# Does not support parallel runs (use $$)
-	local timed_out_file="${tmpdir:-/tmp}/syslog-ng-debun_run-timeout.$$.flag"
+	if [ -z "$1" ] ;then
+		echo "Error: run_with_timeout: No command passed" >&4
+		return 1
+	fi
+
 	"$@" &
 	local cmd_pid=$!
-	( sleep "$timeout_sec" && touch "$timed_out_file" && kill "$cmd_pid" 2>/dev/null ) &
+	local cmd_fingerprint="$(pspoo ${cmd_pid} 2>/dev/null)"
+	local timed_out_file="${tmpdir:-/tmp}/syslog-ng-debun_run-timeout.${cmd_pid}.flag"
+
+	( 	local i=0
+		while [ "${i}" -lt "${timeout_sec}" ] ; do
+			sleep 1
+			i=$((i + 1))
+		done
+		touch "${timed_out_file}" 2>/dev/null
+		if [ "${cmd_fingerprint:-unset}" = "$(pspoo ${cmd_pid} 2>/dev/null)" ]; then
+			kill "${cmd_pid}" 2>/dev/null
+		fi
+	) &
 	local watchdog_pid=$!
-	wait "$cmd_pid" 2>/dev/null
+	local watchdog_fingerprint="$(pspoo ${watchdog_pid} 2>/dev/null)"
+
+	wait "${cmd_pid}" 2>/dev/null
 	local ret=$?
-	kill "$watchdog_pid" 2>/dev/null
-	wait "$watchdog_pid" 2>/dev/null
-	if [ -f "$timed_out_file" ]; then
-		rm -f "$timed_out_file"
+	if [ "${watchdog_fingerprint:-unset}" = "$(pspoo ${watchdog_pid} 2>/dev/null)" ]; then
+		kill "${watchdog_pid}" 2>/dev/null
+	fi
+	wait "${watchdog_pid}" >/dev/null 2>&1
+	if [ -f "${timed_out_file}" ]; then
+		rm -f "${timed_out_file}"
 		printf 'Warning: Command timeout reached: %ss: %s\n' "${timeout_sec}" "${*}" >&4
 		ret=124
 	fi
