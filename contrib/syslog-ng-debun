@@ -269,6 +269,10 @@ run_with_timeout () {
 		touch "${timed_out_file}" 2>/dev/null
 		if [ "${cmd_fingerprint:-unset}" = "$(pspoo ${cmd_pid} 2>/dev/null)" ]; then
 			kill "${cmd_pid}" 2>/dev/null
+			sleep 2
+			if [ "${cmd_fingerprint:-unset}" = "$(pspoo ${cmd_pid} 2>/dev/null)" ]; then
+				kill -9 "${cmd_pid}" 2>/dev/null
+			fi
 		fi
 	) &
 	local watchdog_pid=$!
