@@ -1,0 +1,256 @@
+# .github/workflows/devshell-build.yml
+#
+# Reusable workflow called by devshell.yml for each matrix entry.
+# The `run-condition` boolean input controls whether the build job actually runs:
+# when false, GitHub skips the job entirely — no runner is allocated.
+# This avoids machine startup costs for matrix entries that are irrelevant
+# (e.g. non-devshell images on PR builds).
+name: Devshell Build
+
+on:
+  workflow_call:
+    inputs:
+      build-tool:
+        required: true
+        type: string
+      cc:
+        required: true
+        type: string
+      platform:
+        required: true
+        type: string
+      image-name:
+        required: true
+        type: string
+      image-arch-suffix:
+        required: false
+        type: string
+        default: ""
+      image-cflags:
+        required: false
+        type: string
+        default: ""
+      image-configure-flags:
+        required: false
+        type: string
+        default: ""
+      image-cmake-configure-flags:
+        required: false
+        type: string
+        default: ""
+      run-condition:
+        required: true
+        type: boolean
+      use_all:
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read   # actions/checkout, git fetch
+  actions: write   # actions/upload-artifact
+  packages: read   # pull ghcr.io/syslog-ng/dbld-* container images
+
+jobs:
+  build:
+    if: ${{ inputs.run-condition }}
+    name: ${{ inputs.image-name }}-${{ inputs.build-tool }}-${{ inputs.cc }}${{ inputs.image-arch-suffix || '-X86-64' }}
+    runs-on: ${{ inputs.platform }}
+    container:
+      image: ghcr.io/syslog-ng/dbld-${{ inputs.image-name }}${{ inputs.image-arch-suffix }}:latest
+      options: --privileged --ulimit core=-1
+
+    steps:
+      - name: Setup Git safedir
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
+      - name: Checkout syslog-ng source
+        if: ${{ inputs.image-arch-suffix != '-i386' }}
+        uses: actions/checkout@v4
+
+      - name: Checkout syslog-ng source (i386 - manual git)
+        # actions/checkout@v4 runs a 64-bit Node.js binary which fails inside a 32-bit (i386) container.
+        # Use plain shell git commands instead, which work fine in 32-bit userspace.
+        if: ${{ inputs.image-arch-suffix == '-i386' }}
+        run: |
+          git init
+          git remote add origin https://github.com/${{ github.repository }}
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --depth=1 origin +${{ github.sha }}:refs/remotes/pull/${{ github.event.pull_request.number }}/merge
+            git checkout refs/remotes/pull/${{ github.event.pull_request.number }}/merge
+          else
+            git fetch --depth=1 origin ${{ github.ref }}
+            git checkout FETCH_HEAD
+          fi
+
+      - name: Setup environment
+        run: |
+          . .github/workflows/gh-tools.sh
+
+          # Setup corefiles
+          ulimit -c unlimited
+          COREFILES_DIR=/tmp/corefiles
+          mkdir -p ${COREFILES_DIR}
+          echo "${COREFILES_DIR}/core.%h.%e.%t" > /proc/sys/kernel/core_pattern
+
+          # Setup build time environment variables
+          PYTHONUSERBASE="${HOME}/python_packages"
+          CC="${{ inputs.cc }}"
+          CXX=$( [ $CC = gcc ] && echo g++ || echo clang++ )
+          CFLAGS="${{ inputs.image-cflags }} -Wno-unused-command-line-argument -DNO_PTHREAD_SELF_USAGE_WARNING=1"
+          CXXFLAGS="${CFLAGS}"
+          SYSLOG_NG_INSTALL_DIR=${HOME}/install/syslog-ng
+          CONFIGURE_FLAGS="
+            --enable-colored-log
+            `[ $CC = clang ] && echo '--enable-force-gnu99' || true`
+            --enable-extra-warnings
+            --enable-debug
+            --prefix=${SYSLOG_NG_INSTALL_DIR}
+            --enable-tests
+            --enable-jemalloc=auto
+            --enable-all-modules
+            --with-python=3
+            --with-ivykis=internal
+            --disable-java
+            --disable-java-modules
+            --enable-stackdump
+            ${{ inputs.image-configure-flags }}
+          "
+          CMAKE_CONFIGURE_FLAGS="
+            `[ $CC = clang ] && echo '-DENABLE_FORCE_GNU99=ON' || true`
+            -DENABLE_EXTRA_WARNINGS=ON
+            -DCMAKE_BUILD_TYPE=Debug
+            -DCMAKE_INSTALL_PREFIX=${SYSLOG_NG_INSTALL_DIR}
+            -DSUMMARY_LEVEL=1
+            -DENABLE_TESTING=ON
+            -DENABLE_JEMALLOC=AUTO
+            -DPYTHON_VERSION=3
+            -DIVYKIS_SOURCE=internal
+            -DENABLE_JAVA=OFF
+            -DENABLE_JAVA_MODULES=OFF
+            -DENABLE_STACKDUMP=ON
+            -DENABLE_EBPF=ON
+            ${{ inputs.image-cmake-configure-flags }}
+          "
+          gh_export COREFILES_DIR PYTHONUSERBASE CC CXX SYSLOG_NG_INSTALL_DIR CFLAGS CXXFLAGS CONFIGURE_FLAGS CMAKE_CONFIGURE_FLAGS
+          gh_path "${PYTHONUSERBASE}"
+
+      - name: autogen.sh
+        if: ${{ inputs.build-tool == 'autotools' }}
+        run: |
+          env | sort
+          ./autogen.sh
+
+      - name: autotools configure
+        if: ${{ inputs.build-tool == 'autotools' }}
+        run: |
+          env | sort
+          mkdir build
+          cd build
+          ../configure ${CONFIGURE_FLAGS}
+
+      - name: cmake configure
+        if: ${{ inputs.build-tool == 'cmake' }}
+        run: |
+          env | sort
+          mkdir build
+          cd build
+          cmake ${CMAKE_CONFIGURE_FLAGS} ..
+
+      - name: make
+        working-directory: ./build
+        run: |
+          make V=1 -j $(nproc)
+
+      - name: make install
+        working-directory: ./build
+        run: |
+          make install -j $(nproc)
+
+      - name: check installed binary
+        working-directory: ./build
+        run: |
+          echo "Checking produced installation..."
+          "${SYSLOG_NG_INSTALL_DIR}/sbin/syslog-ng" -FdevtV > syslog-ng.unsorted.log 2>&1
+          sort syslog-ng.unsorted.log > syslog-ng.log
+
+          cat syslog-ng.log
+          # Check for failing modules
+          if grep -q "Error opening plugin module;" syslog-ng.log; then
+            echo "Modules failing to load:"
+            grep "Error opening plugin module;" syslog-ng.log
+            exit 1
+          fi
+
+      - name: jemalloc stats
+        if: ${{ inputs.image-name == 'devshell' && inputs.image-arch-suffix != '-i386' }}
+        run: MALLOC_CONF=stats_print:true "${SYSLOG_NG_INSTALL_DIR}/sbin/syslog-ng" -V 2>&1 | grep -A50 "jemalloc"
+
+      - name: make check
+        # Skip testing for now in none-devshell images
+        if: ${{ inputs.image-name == 'devshell' || inputs.use_all }}
+        id: make_check
+        working-directory: ./build
+        run: make V=1 check -j $(nproc) || (mkdir -p ${COREFILES_DIR} && find . -executable -a -type f | tar -cf ${COREFILES_DIR}/test-binaries.tar  --files-from=- && cat test-suite.log && false)
+
+      - name: Python virtualenv for syslog-ng runtime
+        # Skip Python virtualenv setup for now in none-devshell images or if no python support in the image yet
+        if: ${{ inputs.image-name == 'devshell' || inputs.use_all }}
+        run: ${SYSLOG_NG_INSTALL_DIR}/bin/syslog-ng-update-virtualenv -y
+
+      - name: Light
+        # Skip Light testing for now in none-devshell images or if no python support in the image yet
+        if: ${{ inputs.image-name == 'devshell' || inputs.use_all }}
+        id: light
+        working-directory: ./build
+        run: |
+          make light-self-check
+          make light-check
+
+      - name: make func-test
+        # Skip func-test testing for now in none-devshell images or if no python support in the image yet
+        if: ${{ inputs.image-name == 'devshell' || inputs.use_all }}
+        working-directory: ./build
+        run: make VERBOSE=1 func-test
+
+      - name: "Artifact: test-suite.log"
+        uses: actions/upload-artifact@v4
+        # Handle failures only for devshell images now (exclude i386 reporting for now, actions/upload-artifact@v4 has no i386 support)
+        if: ${{ inputs.image-arch-suffix != '-i386' && inputs.image-name == 'devshell' && always() && steps.make_check.outcome == 'failure' }}
+        with:
+          name: test-suite-${{ inputs.build-tool }}-${{ inputs.cc }}
+          path: ${{ github.workspace }}/build/test-suite.log
+
+      - name: "Prepare artifact: light-reports"
+        id: prepare-light-reports
+        # Handle failures only for devshell images now
+        if: ${{ inputs.image-name == 'devshell' && always() && steps.light.outcome == 'failure' }}
+        run: |
+          REPORTS_DIR=tests/light/reports
+          cp -r ${REPORTS_DIR} /tmp/light-reports
+          find /tmp/light-reports -type p,s -print0 | xargs -0 rm -f
+          tar -cz -f /tmp/light-reports.tar.gz /tmp/light-reports
+
+      - name: "Artifact: light-reports"
+        uses: actions/upload-artifact@v4
+        # Handle failures only for devshell images now (exclude i386 reporting for now, actions/upload-artifact@v4 has no i386 support)
+        if: ${{ inputs.image-arch-suffix != '-i386' && inputs.image-name == 'devshell' && always() && steps.prepare-light-reports.outcome == 'success' }}
+        with:
+          name: light-reports-${{ inputs.build-tool }}-${{ inputs.cc }}
+          path: /tmp/light-reports.tar.gz
+
+      - name: Dump corefile backtrace
+        working-directory: ${{ env.COREFILES_DIR }}
+        # Handle failures only for devshell images now
+        if: ${{ inputs.image-name == 'devshell' && failure() }}
+        run: |
+          find -name "core.*syslog-ng*" -exec \
+            gdb --ex="thread apply all bt full" --ex="quit" ${SYSLOG_NG_INSTALL_DIR}/sbin/syslog-ng --core {} \;
+
+      - name: "Artifact: corefiles"
+        uses: actions/upload-artifact@v4
+        # Handle failures only for devshell images now (exclude i386 for now, actions/upload-artifact@v4 has no i386 support)
+        if: ${{ inputs.image-arch-suffix != '-i386' && inputs.image-name == 'devshell' && failure() }}
+        with:
+          name: corefiles-${{ inputs.build-tool }}-${{ inputs.cc }}
+          path: ${{ env.COREFILES_DIR }}

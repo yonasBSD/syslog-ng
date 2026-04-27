@@ -126,16 +126,17 @@ jobs:
             # installed) non-interactive.
             export ASSUME_ALWAYS_YES=yes
 
-            # The default FreeBSD-ports catalogue (the "latest" branch) on some
-            # FreeBSD releases (notably 15.0) getting corrupted form time to time
-            # and pkg fails with garbled metadata errors like:
-            #   "pkg: truncated reply for signature_fingerprintsoutput"
+            # Workaround: the FreeBSD-ports "latest" catalogue is occasionally
+            # served in a corrupted state (seen mostly on the 15.0 VM image),
+            # which makes pkg fail with errors like:
+            #   "pkg: truncated reply for signature_fingerprints"
             #   "Repository FreeBSD-ports cannot be opened. 'pkg update' required"
-            # The "quarterly" branch is built less often and is unaffected.
-            # Detect the issue by probing the catalogue and, if broken, override
-            # the FreeBSD-ports repo to use "quarterly" before installing.
+            # and every subsequent `pkg install` cannot find any package.
+            # The "quarterly" branch is rebuilt less often and is unaffected,
+            # so when we detect the breakage we point FreeBSD-ports at quarterly
+            # for the rest of this job. Healthy runs keep the default repo.
             if pkg update -f 2>&1 | tee /tmp/pkg-update.log | grep -q "truncated reply\|cannot be opened"; then
-              echo "Detected broken FreeBSD-ports catalogue, switching to the quarterly branch..."
+              echo "Broken FreeBSD-ports catalogue detected; switching to the quarterly branch..."
               mkdir -p /usr/local/etc/pkg/repos
               cat > /usr/local/etc/pkg/repos/FreeBSD.conf <<'EOF'
             FreeBSD: {
@@ -148,7 +149,7 @@ jobs:
             EOF
               pkg update -f
             else
-              echo "pkg catalogue OK, using default repo configuration."
+              echo "pkg catalogue OK; using default repo configuration."
             fi
 
             pkg install -y autoconf autoconf-archive automake bison cmake flex git gperf glib json-c libtool pcre2 pkgconf gradle grpc hiredis libdbi libdbi-drivers libmaxminddb libnet libpaho-mqtt3 librdkafka libesmtp mongo-c-driver net-snmp openjdk25 rabbitmq-c riemann-c-client
