@@ -12,7 +12,7 @@ LANG=en_US
 LC_ALL=C
 export LANG LC_ALL
 
-version="0.3.20.20220117"
+version="0.3.21.20260422"
 
 ### Check for "local" variable support
 if type local | grep builtin >/dev/null; then
@@ -58,6 +58,7 @@ lsof="lsof -p"
 no_lsof_fallback() { echo "No lsof in path."; }
 pscmd="ps auxwwwwwf"
 pseao="ps -eao"
+pspoo() { ps -p "${1}" -o pid= -o ppid= ; }
 cpiopdL="cpio -pdL"
 findL () { find -L "$@" ; }
 dfk="df -k"
@@ -235,6 +236,67 @@ else
 	syslogrealbin=${binprefix}/sbin/syslog-ng
 fi
 
+run_with_timeout () {
+	# Cross-platform timeout function
+	# run_with_timeout [-t timeout_sec] command
+	local timeout_sec=180
+	local kill_mode='TERM'
+
+	case "$1" in
+		'-t')
+			case "$2" in
+				''|*[!0-9]*)
+					echo "Error: run_with_timeout: -t requires an integer argument" >&4
+					return 1 ;;
+				*)	timeout_sec="$2" ;;
+			esac
+			shift ; shift ;;
+	esac
+	if [ -z "$1" ] ; then
+		echo "Error: run_with_timeout: No command passed" >&4
+		return 1
+	fi
+
+	"$@" &
+	local cmd_pid=$!
+	local cmd_fingerprint="$(pspoo "${cmd_pid}" 2>/dev/null)"
+	local timed_out_file="${tmpdir:-/tmp}/syslog-ng-debun_run-timeout.${cmd_pid}.flag"
+
+	(
+		local i=0
+		while [ "${i}" -lt "${timeout_sec}" ] ; do
+			sleep 1
+			i=$((i + 1))
+		done
+		printf '%s\n' "${kill_mode}" > "${timed_out_file}" 2>/dev/null
+		if [ "${cmd_fingerprint:-unset}" = "$(pspoo "${cmd_pid}" 2>/dev/null)" ]; then
+			kill -s "${kill_mode}" "${cmd_pid}" >/dev/null 2>&1
+			sleep 2
+			if [ "${cmd_fingerprint:-unset}" = "$(pspoo "${cmd_pid}" 2>/dev/null)" ]; then
+				kill_mode='KILL'
+				printf '%s\n' "${kill_mode}" > "${timed_out_file}" 2>/dev/null
+				kill -s "${kill_mode}" "${cmd_pid}" >/dev/null 2>&1
+			fi
+		fi
+	) &
+	local watchdog_pid=$!
+	local watchdog_fingerprint="$(pspoo "${watchdog_pid}" 2>/dev/null)"
+
+	wait "${cmd_pid}" >/dev/null 2>&1
+	local ret=$?
+	if [ "${watchdog_fingerprint:-unset}" = "$(pspoo "${watchdog_pid}" 2>/dev/null)" ]; then
+		kill -s "${kill_mode}" "${watchdog_pid}" >/dev/null 2>&1
+	fi
+	wait "${watchdog_pid}" >/dev/null 2>&1
+	if [ -f "${timed_out_file}" ]; then
+		kill_mode=$(cat "${timed_out_file}" 2>/dev/null)
+		rm -f "${timed_out_file}" >/dev/null 2>&1
+		printf 'Warning: Command timeout reached: %ss (%s): %s\n' "${timeout_sec}" "${kill_mode:-unknown}" "${*}" >&4
+		ret=124
+	fi
+	return $ret
+}
+
 debun_init () {
 	#Create temp dir, to place files into
 	host=$( uname -n )
@@ -247,7 +309,7 @@ debun_init () {
 	# Start redirections
 
 	#exec 3>&1 >${tmpdir}/syslog-ng.debun.txt 2>${tmpdir}/syslog-ng.debun.txt
-	exec 3>&1 >${tmpdir}/syslog-ng.debun.txt 2>&1
+	exec 3>&1 >${tmpdir}/syslog-ng.debun.txt 4>&1 2>&1
 	echo "Syslog-NG DEBUg buNdle generator"
 	sync
 	while [ ! -f ${tmpdir}/syslog-ng.debun.txt ] ; do sleep 1 ; done
@@ -751,16 +813,16 @@ acquire_syslog_stats () {
 	#handy-dandy delay magic, triggered when we'd step on our own foot
 	[ -f ${tmpdir}/syslog.stats.${tsdata} ] && sleep 5 && tsdata=$( timestamp )
 
-	${syslogngctlbin} stats > ${tmpdir}/syslog.stats.${tsdata} 2>&1
+	run_with_timeout ${syslogngctlbin} stats > ${tmpdir}/syslog.stats.${tsdata} 2>&1
 	echo ${syslogngctlbin} stats
 	tsdata=$( timestamp )
-	${syslogngctlbin} query get "*" > ${tmpdir}/syslog.query.all.${tsdata} 2>/dev/null
+	run_with_timeout ${syslogngctlbin} query get "*" > ${tmpdir}/syslog.query.all.${tsdata} 2>/dev/null
 	echo ${syslogngctlbin} query get "*"
 	if [ -x ${syslogngquerybin} ]; then
 		#if we reach this brach, then syslog.query.all - as generated above - will not contain any meaningful data
 		rm ${tmpdir}/syslog.query.all.${tsdata}
 		tsdata=$( timestamp )
-		${syslogngquerybin} sum "*" > ${tmpdir}/syslog.query.all.${tsdata} 2>/dev/null
+		run_with_timeout ${syslogngquerybin} sum "*" > ${tmpdir}/syslog.query.all.${tsdata} 2>/dev/null
 		echo ${syslogngquerybin} sum "*"
 	fi
 }
@@ -777,11 +839,11 @@ acquire_syslog_info () {
 		acquire_syslog_stats
 	fi
 
-	if ${syslogngctlbin} show-license-info > ${tmpdir}/syslog.license-usage 2>&1; then
-		${syslogngctlbin} show-license-info --json > ${tmpdir}/syslog.license-usage.json 2>/dev/null
+	if run_with_timeout ${syslogngctlbin} show-license-info > ${tmpdir}/syslog.license-usage 2>&1; then
+		run_with_timeout ${syslogngctlbin} show-license-info --json > ${tmpdir}/syslog.license-usage.json 2>/dev/null
 	fi
 	echo ${syslogngctlbin} show-license-info
-	${syslogngctlbin} credentials status > ${tmpdir}/syslog.credentials.status 2>&1
+	run_with_timeout ${syslogngctlbin} credentials status > ${tmpdir}/syslog.credentials.status 2>&1
 	echo ${syslogngctlbin} credentials status
 
 	for i in ${sngallpids} ; do
@@ -928,8 +990,8 @@ acquire_syslog_nprv () {
 }
 
 acquire_running_syslog_config() {
-	if ${syslogngctlbin} config >/dev/null 2>&1; then
-		${syslogngctlbin} config -p > "${tmpdir}/syslog-ng.ctl.running.conf" 2>&1
+	if run_with_timeout ${syslogngctlbin} config >/dev/null 2>&1; then
+		run_with_timeout ${syslogngctlbin} config -p > "${tmpdir}/syslog-ng.ctl.running.conf" 2>&1
 		[ -z "$saveprivatekeys" ] && remove_passwords_from_file "${tmpdir}/syslog-ng.ctl.running.conf"
 	fi
 }
