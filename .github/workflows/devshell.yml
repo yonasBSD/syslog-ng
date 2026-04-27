@@ -3,69 +3,70 @@ name: CI @ devshell
 on:
   pull_request:
   push:
-    branches: ["develop", "master"]
+    branches: [ "develop", "master" ]
   schedule:
     - cron: "00 21 * * *"
   workflow_dispatch:
     inputs:
       use_all:
-        description: Should we build for all images? (true/false)
+        description: Should we build for all images?
         required: false
-        default: "false"
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-jobs:
-  general:
-    runs-on: ${{ matrix.platform }}
-    name: ${{ matrix.image.name }}-${{ matrix.build-tool }}-${{ matrix.cc }}${{ matrix.image.arch_suffix != '' && matrix.image.arch_suffix || '-X86-64' }}
-    container:
-      image: ghcr.io/syslog-ng/dbld-${{ matrix.image.name }}${{ matrix.image.arch_suffix }}:latest
-      options: --privileged --ulimit core=-1
+permissions:
+  contents: read   # actions/checkout
+  actions: write   # actions/upload-artifact + inherited by devshell-build.yml
+  packages: read   # pull ghcr.io/syslog-ng/dbld-* container images
 
+jobs:
+  build:
     strategy:
       fail-fast: false
       matrix:
-        build-tool: [autotools, cmake]
-        cc: [gcc, clang]
-        platform: [ubuntu-24.04-arm, ubuntu-latest]
+        # We test building in dbld docker images only that have no binary packages, or docker installations.
+        # OS varians that have binary packages or docker installations will be built by the 'Nightly release'
+        # NOTE: Keep the image list synced with the dbld-images.yaml !!!
+        # --------------------------------------------------------------------
+        # Current Build/Test Matrix Coverage
+        #
+        # image - name        | cmake | autotools | gcc | clang | X86-64 | arm64 | light | func | criterion |
+        # --------------------|-------|-----------|-----|-------|--------|-------|-------|------|-----------|
+        # almalinux-8         |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # almalinux-9         |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # almalinux-10        |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # centos-stream9      |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # centos-stream10     |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # fedora-latest       |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # fedora-rawhide      |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # opensuse-tumbleweed |       |           |     |       |        |       |       |      |           | (TODO: not yet enabled)
+        # rocky-9             |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # ubuntu-focal        |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # ---------------------------------------------------------------------------------------------------
+        # debian-bullseye     |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # debian-bookworm     |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # debian-testing      |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # debian-sid          |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # ubuntu-jammy        |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # ubuntu-noble        |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # ubuntu-plucky       |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # rhel-8              |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # rhel-9              |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # rhel-10             |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # ---------------------------------------------------------------------------------------------------
+        # debian-trixie       |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # ---------------------------------------------------------------------------------------------------
+        # devshell            |   x   |     x     |  x  |   x   |   x    |   x   |   x   |   x  |     x     |
+        # devshell (i386)     |   x   |           |  x  |       |   x    |       |   x   |   x  |     x     |
+        # ---------------------------------------------------------------------------------------------------
+        build-tool: [ autotools, cmake ]
+        cc: [ gcc, clang ]
+        platform: [ ubuntu-24.04-arm, ubuntu-latest ]
         image:
-          # We test building in dbld docker images only that have no binary packages, or docker installations.
-          # OS varians that have binary packages or docker installations will be built by the 'Nightly release'
-          # NOTE: Keep the image list synced with the dbld-images.yaml !!!
-          # --------------------------------------------------------------------
-          # Current Build/Test Matrix Coverage
-          #
-          # image - name        | cmake | autotools | gcc | clang | X86-64 | arm64 | light | funv | criterion |
-          # --------------------|-------|-----------|-----|-------|--------|-------|-------|------|-----------|
-          # almalinux-8         |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # almalinux-9         |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # almalinux-10        |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # centos-stream9      |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # centos-stream10     |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # fedora-latest       |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # fedora-rawhide      |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # opensuse-tumbleweed |       |           |     |       |        |       |   x   |   x  |     x     |
-          # rocky-9             |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # ubuntu-focal        |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # ---------------------------------------------------------------------------------------------------
-          # debian-bullseye     |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # debian-bookworm     |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # debian-testing      |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # debian-sid          |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # ubuntu-jammy        |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # ubuntu-noble        |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # ubuntu-plucky       |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # rhel-8              |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # rhel-9              |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # rhel-10             |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # ---------------------------------------------------------------------------------------------------
-          # debian-trixie       |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
-          # ---------------------------------------------------------------------------------------------------
-          # devshell            |   x   |     x     |  x  |   x   |   x    |   x   |   x   |   x  |     x     |
-          # ---------------------------------------------------------------------------------------------------
           - name: almalinux-8
             # grpc/protobuf is presented, but configure cannot find protobuf
             configure_flags: "--disable-sql --disable-grpc --disable-ebpf --with-python=3.9"
@@ -176,202 +177,18 @@ jobs:
             build-tool: cmake
             cc: gcc
 
-    steps:
-      - name: Setup Git safedir
-        if: ${{ matrix.image.name == 'devshell' || github.event_name == 'schedule' || inputs.use_all == 'true' }}
-        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-
-      - name: Checkout syslog-ng source
-        if: ${{ matrix.image.arch_suffix != '-i386' && (matrix.image.name == 'devshell' || github.event_name == 'schedule' || inputs.use_all == 'true') }}
-        uses: actions/checkout@v4
-
-      - name: Checkout syslog-ng source (i386 - manual git)
-        if: ${{ matrix.image.arch_suffix == '-i386' && (matrix.image.name == 'devshell' || github.event_name == 'schedule' || inputs.use_all == 'true') }}
-        run: |
-          git init
-          git remote add origin https://github.com/${{ github.repository }}
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git fetch --depth=1 origin +${{ github.sha }}:refs/remotes/pull/${{ github.event.pull_request.number }}/merge
-            git checkout refs/remotes/pull/${{ github.event.pull_request.number }}/merge
-          else
-            git fetch --depth=1 origin ${{ github.ref }}
-            git checkout FETCH_HEAD
-          fi
-
-      - name: Setup environment
-        if: ${{ matrix.image.name == 'devshell' || github.event_name == 'schedule' || inputs.use_all == 'true' }}
-        run: |
-          . .github/workflows/gh-tools.sh
-
-          # Setup corefiles
-          ulimit -c unlimited
-          COREFILES_DIR=/tmp/corefiles
-          mkdir ${COREFILES_DIR}
-          echo "${COREFILES_DIR}/core.%h.%e.%t" > /proc/sys/kernel/core_pattern
-
-          # Setup build time environment variables
-          PYTHONUSERBASE="${HOME}/python_packages"
-          CC="${{ matrix.cc }}"
-          CXX=`[ $CC = gcc ] && echo g++ || echo clang++`
-          CFLAGS="${{ matrix.image.cflags}} -Wno-unused-command-line-argument -DNO_PTHREAD_SELF_USAGE_WARNING=1"
-          CXXFLAGS="${CFLAGS}"
-          SYSLOG_NG_INSTALL_DIR=${HOME}/install/syslog-ng
-          CONFIGURE_FLAGS="
-            --enable-colored-log
-            `[ $CC = clang ] && echo '--enable-force-gnu99' || true`
-            --enable-extra-warnings
-            --enable-debug
-            --prefix=${SYSLOG_NG_INSTALL_DIR}
-            --enable-tests
-            --enable-jemalloc=auto
-            --enable-all-modules
-            --with-python=3
-            --with-ivykis=internal
-            --disable-java
-            --disable-java-modules
-            --enable-stackdump
-            ${{ matrix.image.configure_flags }}
-          "
-          CMAKE_CONFIGURE_FLAGS="
-            `[ $CC = clang ] && echo '-DENABLE_FORCE_GNU99=ON' || true`
-            -DENABLE_EXTRA_WARNINGS=ON
-            -DCMAKE_BUILD_TYPE=Debug
-            -DCMAKE_INSTALL_PREFIX=${SYSLOG_NG_INSTALL_DIR}
-            -DSUMMARY_LEVEL=1
-            -DENABLE_TESTING=ON
-            -DENABLE_JEMALLOC=AUTO
-            -DPYTHON_VERSION=3
-            -DIVYKIS_SOURCE=internal
-            -DENABLE_JAVA=OFF
-            -DENABLE_JAVA_MODULES=OFF
-            -DENABLE_STACKDUMP=ON
-            -DENABLE_EBPF=ON
-            ${{ matrix.image.cmake_configure_flags }}
-          "
-          gh_export COREFILES_DIR PYTHONUSERBASE CC CXX SYSLOG_NG_INSTALL_DIR CFLAGS CXXFLAGS CONFIGURE_FLAGS CMAKE_CONFIGURE_FLAGS
-          gh_path "${PYTHONUSERBASE}"
-
-      - name: autogen.sh
-        if: ${{ matrix.build-tool == 'autotools' && (matrix.image.name == 'devshell' || github.event_name == 'schedule' || inputs.use_all == 'true') }}
-        run: |
-          env | sort
-          ./autogen.sh
-
-      - name: autotools configure
-        if: ${{ matrix.build-tool == 'autotools' && (matrix.image.name == 'devshell' || github.event_name == 'schedule' || inputs.use_all == 'true') }}
-        run: |
-          env | sort
-          mkdir build
-          cd build
-          ../configure ${CONFIGURE_FLAGS}
-
-      - name: cmake configure
-        if: ${{ matrix.build-tool == 'cmake' && (matrix.image.name == 'devshell' || github.event_name == 'schedule' || inputs.use_all == 'true') }}
-        run: |
-          env | sort
-          mkdir build
-          cd build
-          cmake ${CMAKE_CONFIGURE_FLAGS} ..
-
-      - name: make
-        if: ${{ matrix.image.name == 'devshell' || github.event_name == 'schedule' || inputs.use_all == 'true' }}
-        working-directory: ./build
-        run: make V=1 -j $(nproc)
-
-      - name: make install
-        if: ${{ matrix.image.name == 'devshell' || github.event_name == 'schedule' || inputs.use_all == 'true' }}
-        working-directory: ./build
-        run: |
-          make install -j $(nproc)
-
-      - name: check installed binary
-        if: ${{ matrix.image.name == 'devshell' || github.event_name == 'schedule' || inputs.use_all == 'true' }}
-        working-directory: ./build
-        run: |
-          echo "Checking produced installation..."
-          "${SYSLOG_NG_INSTALL_DIR}/sbin/syslog-ng" -FdevtV > syslog-ng.unsorted.log 2>&1
-          sort syslog-ng.unsorted.log > syslog-ng.log
-
-          cat syslog-ng.log
-          # Check for failing modules
-          if grep -q "Error opening plugin module;" syslog-ng.log; then
-            echo "Modules failing to load:"
-            grep "Error opening plugin module;" syslog-ng.log
-            exit 1
-          fi
-
-      - name: jemalloc stats
-        if: ${{ matrix.image.name == 'devshell' && matrix.image.arch_suffix != '-i386'}}
-        run: MALLOC_CONF=stats_print:true "${SYSLOG_NG_INSTALL_DIR}/sbin/syslog-ng" -V 2>&1 | grep -A50 "jemalloc"
-
-      - name: make check
-        # Skip testing for now in none-devshell images
-        if: ${{ matrix.image.name == 'devshell' || inputs.use_all == 'true' }}
-        id: make_check
-        working-directory: ./build
-        run: make V=1 check -j $(nproc) || (mkdir -p ${COREFILES_DIR} && find . -executable -a -type f | tar -cf ${COREFILES_DIR}/test-binaries.tar  --files-from=- && cat test-suite.log && false)
-
-      - name: Python virtualenv for syslog-ng runtime
-        # Skip Python virtualenv setup for now in none-devshell images or if no python support in the image yet
-        if: ${{ matrix.image.name == 'devshell' || inputs.use_all == 'true' }}
-        run: ${SYSLOG_NG_INSTALL_DIR}/bin/syslog-ng-update-virtualenv -y
-
-      - name: Light
-        # Skip Light testing for now in none-devshell images or if no python support in the image yet
-        if: ${{ matrix.image.name == 'devshell' || inputs.use_all == 'true' }}
-        id: light
-        working-directory: ./build
-        run: |
-          make light-self-check
-          make light-check
-
-      - name: make func-test
-        # Skip func-test testing for now in none-devshell images or if no python support in the image yet
-        if: ${{ matrix.image.name == 'devshell' || inputs.use_all == 'true' }}
-        working-directory: ./build
-        run: make VERBOSE=1 func-test
-
-      - name: "Artifact: test-suite.log"
-        uses: actions/upload-artifact@v4
-        # Handle failures only for devshell images now (exclude i386 reporting for now, actions/upload-artifact@v4 has no i386 support)
-        if: ${{ matrix.image.arch_suffix != '-i386' && matrix.image.name == 'devshell' && always() && steps.make_check.outcome == 'failure' }}
-        with:
-          name: test-suite-${{ matrix.build-tool }}-${{ matrix.cc }}
-          path: ${{ github.workspace }}/build/test-suite.log
-
-      - name: "Prepare artifact: light-reports"
-        id: prepare-light-reports
-        # Handle failures only for devshell images now
-        if: ${{ matrix.image.name == 'devshell' && always() && steps.light.outcome == 'failure' }}
-        run: |
-          REPORTS_DIR=tests/light/reports
-          cp -r ${REPORTS_DIR} /tmp/light-reports
-          find /tmp/light-reports -type p,s -print0 | xargs -0 rm -f
-          tar -cz -f /tmp/light-reports.tar.gz /tmp/light-reports
-
-      - name: "Artifact: light-reports"
-        uses: actions/upload-artifact@v4
-        # Handle failures only for devshell images now (exclude i386 reporting for now, actions/upload-artifact@v4 has no i386 support)
-        if: ${{ matrix.image.arch_suffix != '-i386' && matrix.image.name == 'devshell' && always() && steps.prepare-light-reports.outcome == 'success' }}
-        with:
-          name: light-reports-${{ matrix.build-tool }}-${{ matrix.cc }}
-          path: /tmp/light-reports.tar.gz
-
-      - name: Dump corefile backtrace
-        working-directory: ${{ env.COREFILES_DIR }}
-        # Handle failures only for devshell images now
-        if: ${{ matrix.image.name == 'devshell' && failure() }}
-        run: |
-          find -name "core.*syslog-ng*" -exec \
-            gdb --ex="thread apply all bt full" --ex="quit" ${SYSLOG_NG_INSTALL_DIR}/sbin/syslog-ng --core {} \;
-
-      - name: "Artifact: corefiles"
-        uses: actions/upload-artifact@v4
-        # Handle failures only for devshell images now (exclude i386 for now, actions/upload-artifact@v4 has no i386 support)
-        if: ${{ matrix.image.arch_suffix != '-i386' && matrix.image.name == 'devshell' && failure() }}
-        with:
-          name: corefiles-${{ matrix.build-tool }}-${{ matrix.cc }}
-          path: ${{ env.COREFILES_DIR }}
+    uses: ./.github/workflows/devshell-build.yml
+    with:
+      build-tool: ${{ matrix.build-tool }}
+      cc: ${{ matrix.cc }}
+      platform: ${{ matrix.platform }}
+      image-name: ${{ matrix.image.name }}
+      image-arch-suffix: ${{ matrix.image.arch_suffix }}
+      image-cflags: ${{ matrix.image.cflags }}
+      image-configure-flags: ${{ matrix.image.configure_flags }}
+      image-cmake-configure-flags: ${{ matrix.image.cmake_configure_flags }}
+      run-condition: ${{ matrix.image.name == 'devshell' || github.event_name == 'schedule' || inputs.use_all }}
+      use_all: ${{ inputs.use_all }}
 
   distcheck:
     runs-on: ubuntu-latest
