@@ -1,5 +1,4 @@
 #!/bin/sh
-#!/bin/bash
 
 ### syslog-ng-debun: syslog debug bundle generator
 ### Written/Copyright: Gyorgy Pasztor <pasztor@linux.gyakg.u-szeged.hu>, (c) 2014-2016.
@@ -12,9 +11,9 @@ LANG=en_US
 LC_ALL=C
 export LANG LC_ALL
 
-version="0.3.21.20260422"
+version="0.3.22.20260428"
 
-### Check for "local" variable support
+### Check for `local` variable support, as not all POSIX shells provide it. If unsupported, try to fall back to Bash when available; otherwise, exit with an error.
 if type local | grep builtin >/dev/null; then
 	:
 elif type bash >/dev/null; then
@@ -51,6 +50,7 @@ netstatpunt () { netstat -punt ; }
 netstatpn () { netstat -pn ; }
 netstatsu="netstat -su"
 binprefix=/opt/syslog-ng
+user_binprefix=
 absscldirs="/usr/share/syslog-ng/include/scl"
 relscldirs="share/include/scl share/syslog-ng/include/scl"
 workdir=/tmp
@@ -113,7 +113,7 @@ Usage: syslog-ng-debun [OPTIONS]
 General Options:
   -r		Run actual information gathering
   -h		Show this help page
-  -R [dir]	Syslog-ng-PE's alternate install dir, instead of /opt/syslog-ng
+  -R [dir]	Syslog-ng's alternate install dir, instead of /opt/syslog-ng
   -W [dir]	Work dir, where debug bundle will be placed
   -l		"light" collect: Don't get data, which may disturb your sense about
 		privacy, like process tree, fstab, etc. If you use with -d, then it
@@ -189,7 +189,7 @@ while getopts "rhlKdD:pP:T:w:i:W:R:t:s" opt ; do
 			debug_mode=1
 			;;
 		R)
-			binprefix="$OPTARG"
+			user_binprefix="$OPTARG"
 			;;
 		t)
 			timeout="$OPTARG"
@@ -361,11 +361,13 @@ debun_do_tarball () {
 	${selftar} | ${gzipcmd} >${tmpdir}.tgz
 	cd ..
 	rm -r "${tmpdir}"
-	printf "Terminating live message watcher: "
+	printf "Terminating live message watcher... "
 	sync
-	kill ${tailpid}
+	kill ${tailpid} 2>/dev/null
+	wait ${tailpid} 2>/dev/null
 	sync
 	sleep 1
+	printf "done."
 }
 
 debun_generate_hashes () {
@@ -383,12 +385,12 @@ debun_final() {
 		acquire_syslog_stats
 	fi
 
-	printf "\nGenerating hashes..."
+	printf "Generating hashes..."
 	debun_generate_hashes
 	printf " done.\nDebug Bundle generation: Done.\n"
 	exec >&3 2>&1
 	debun_do_tarball
-	printf "\n\nYour debug bundle will be stored at %s.tgz\n" "$tmpdir"
+	printf "\n\nYour debug bundle has been stored at %s.tgz\n" "$tmpdir"
 }
 
 add_extra () {
@@ -455,7 +457,7 @@ acquire_system_info () {
 	printf "System's full uname: "
 	uname -a | tee "${tmpdir}/sys.uname"
 	free >${tmpdir}/sys.free
-	vmstat >${tmpdir}/sys.vmstat
+	$vmstat >${tmpdir}/sys.vmstat
 	topcmd "${tmpdir}/sys.top"
 	if is_available ${opensslcmd}; then
 		${opensslcmd} version >${tmpdir}/sys.openssl.version
@@ -1010,6 +1012,81 @@ fhs_set_unix () {
 	:
 }
 
+fhs_set_freebsd () {
+	# FreeBSD: syslog-ng installed via ports to /usr/local/
+	binprefix=/usr/local
+	syslogbin=${binprefix}/sbin/syslog-ng
+	syslogrealbin=${syslogbin}
+	syslogngctlbin=${binprefix}/sbin/syslog-ng-ctl
+	syslogngquerybin=${binprefix}/sbin/syslog-ng-query
+	confdir=${binprefix}/etc/syslog-ng
+	absscldirs=${binprefix}/share/syslog-ng/include/scl
+	vardir=/var/db/syslog-ng
+	piddir=/var/run
+}
+
+# Only called when -R was explicitly passed on the command line.
+fhs_apply_binprefix_override () {
+	# At this point binprefix holds the auto-detected value from fhs_set_*;
+	# override it with the user-supplied -R argument.
+	printf "NOTE: overriding auto-detected install path '%s' with -R parameter: %s\n" "$binprefix" "$user_binprefix"
+	binprefix="${user_binprefix}"
+
+	syslogbin="${binprefix}/sbin/syslog-ng"
+	[ ! -x "${syslogbin}" ] && syslogbin="${binprefix}/bin/syslog-ng"
+	if [ -x "${binprefix}/libexec/syslog-ng" ]; then
+		syslogrealbin="${binprefix}/libexec/syslog-ng"
+	else
+		syslogrealbin="${syslogbin}"
+	fi
+	syslogngctlbin="${binprefix}/sbin/syslog-ng-ctl"
+	[ ! -x "${syslogngctlbin}" ] && syslogngctlbin="${binprefix}/bin/syslog-ng-ctl"
+	syslogngquerybin="${binprefix}/sbin/syslog-ng-query"
+	[ ! -x "${syslogngquerybin}" ] && syslogngquerybin="${binprefix}/bin/syslog-ng-query"
+	confdir="${binprefix}/etc/syslog-ng"
+	[ ! -d "${confdir}" ] && confdir="${binprefix}/etc"
+	vardir="${binprefix}/var"
+	piddir="${vardir}/run"
+}
+
+fhs_set_macos () {
+	# Ask Homebrew where syslog-ng is installed.
+	# `brew --prefix syslog-ng` works on both Apple Silicon (/opt/homebrew)
+	# and Intel (/usr/local) without any hardcoded path iteration.
+	local prefix
+	if is_available brew; then
+		prefix=$( brew --prefix syslog-ng 2>/dev/null )
+	fi
+
+	# Fallback: MacPorts always installs under /opt/local.
+	# There is no per-port prefix command, so check the known binary location.
+	if [ -z "${prefix}" ] && is_available port; then
+		local mp_prefix=/opt/local
+		for mp_bin in bin sbin; do
+			if [ -x "${mp_prefix}/${mp_bin}/syslog-ng" ]; then
+				prefix="${mp_prefix}"
+				break
+			fi
+		done
+	fi
+
+	# If neither package manager has syslog-ng, keep the default binprefix.
+	[ -z "${prefix}" ] && return
+
+	binprefix="${prefix}"
+	syslogbin="${prefix}/bin/syslog-ng"
+	[ ! -x "${syslogbin}" ] && syslogbin="${prefix}/sbin/syslog-ng"
+	syslogrealbin="${syslogbin}"
+	confdir="${prefix}/etc/syslog-ng"
+	vardir="${prefix}/var/syslog-ng"
+	piddir="${prefix}/var/run"
+	absscldirs="${prefix}/share/syslog-ng/include/scl"
+	for ctlbin in bin sbin; do
+		[ -x "${prefix}/${ctlbin}/syslog-ng-ctl" ]   && syslogngctlbin="${prefix}/${ctlbin}/syslog-ng-ctl"
+		[ -x "${prefix}/${ctlbin}/syslog-ng-query" ] && syslogngquerybin="${prefix}/${ctlbin}/syslog-ng-query"
+	done
+}
+
 rpm_verify () {
 	local found=0
 	for pkg in "${@}"; do
@@ -1162,6 +1239,46 @@ debun_freebsd() {
 	add_extra debun_extra_freebsd
 }
 
+debun_extra_macos () {
+	printf "\nmacOS specific checks\n"
+
+	# Hardware / software info (replaces dmidecode + lspci)
+	if is_available system_profiler; then
+		system_profiler SPHardwareDataType > "${tmpdir}/sys.macos.hardware" 2>/dev/null
+		system_profiler SPPCIDataType      > "${tmpdir}/sys.macos.pci"      2>/dev/null
+		system_profiler SPSoftwareDataType > "${tmpdir}/sys.macos.software" 2>/dev/null
+	fi
+
+	# Kernel extensions (replaces lsmod)
+	if is_available kextstat; then
+		kextstat > "${tmpdir}/sys.kextstat" 2>/dev/null
+	fi
+
+	# CPU / hardware info (replaces /proc/cpuinfo)
+	sysctl -a 2>/dev/null | grep -E '^(hw\.|machdep\.cpu\.)' > "${tmpdir}/sys.cpuinfo"
+
+	# Recent unified system log (supplements dmesg)
+	if is_available log; then
+		log show --last 2h --style syslog > "${tmpdir}/sys.macos.unifiedlog" 2>/dev/null || true
+	fi
+
+	# Homebrew syslog-ng package info
+	if is_available brew; then
+		brew list --versions 2>/dev/null | grep -i syslog > "${tmpdir}/brew.packages" || true
+		brew info syslog-ng > "${tmpdir}/brew.info.syslog-ng" 2>/dev/null || true
+	fi
+
+	# MacPorts syslog-ng package info
+	if is_available port; then
+		port installed 2>/dev/null | grep -i syslog > "${tmpdir}/macports.packages" || true
+		port info syslog-ng > "${tmpdir}/macports.info.syslog-ng" 2>/dev/null || true
+	fi
+}
+
+debun_macos () {
+	add_extra debun_extra_macos
+}
+
 debun_extra_hpux () {
 	sysdef >${tmpdir}/sys.sysdef
 	swlist >${tmpdir}/sys.swlist
@@ -1197,6 +1314,21 @@ debun_aix () {
 	rpm -qa |grep syslog > ${tmpdir}/rpm.packages
 }
 
+detect_env_macos () {
+	# Capture macOS version information
+	sw_vers > "${tmpdir}/sys.macos.sw_vers" 2>/dev/null || true
+	syslogfhs=macos
+}
+
+detect_env_freebsd () {
+	# FreeBSD is always FreeBSD regardless of whether syslog-ng is installed.
+	# fhs_set_freebsd will apply the correct /usr/local paths unconditionally.
+	syslogfhs=freebsd
+	if [ ! -x /usr/local/sbin/syslog-ng ] && [ ! -x /usr/local/bin/syslog-ng ]; then
+		printf "WARNING: syslog-ng binary not found under /usr/local — syslog-ng may not be installed.\n"
+	fi
+}
+
 detect_env_linux () {
 	if is_available lsb_release ; then
 		lsb_release -a | tee ${tmpdir}/sys.linux.lsb-all
@@ -1220,27 +1352,40 @@ detect_env_linux () {
 	fi
 }
 
-detect_env () {
-	###
-	### Detecting syslog-ng ver: ose or pe
-	###
-
-	echo "Start environment detection"
-	if [ -x /opt/syslog-ng/bin/loggen ] ; then
-		syslogfhs=unix
-		echo "Unix-like FHS detected"
-	elif [ -d /etc/syslog-ng/ ]; then
-		syslogfhs=linux
-		echo "Linux-type FHS detected"
-	else
-		syslogfhs=unknown
-		confdir=/nonexistent
-		echo "No syslog-ng detected"
-	fi
-
+detect_os () {
 	os=$( uname -s )
-	if [ "$os" = "Linux" ]; then
-		detect_env_linux
+	case "$os" in
+		Linux)   detect_env_linux   ;;
+		Darwin)  detect_env_macos   ;;
+		FreeBSD) detect_env_freebsd ;;
+		SunOS)   : ;; # Solaris: no dist-specific detection needed
+		HP-UX)   : ;;
+		AIX)     : ;;
+		*)       printf "Unknown OS: %s\n" "$os" ;;
+	esac
+}
+
+detect_env () {
+	echo "Start environment detection"
+
+	detect_os
+
+	# FHS detection: determine where syslog-ng is installed.
+	# OS-specific detect_env_* functions may have already set syslogfhs
+	# (e.g. macOS sets syslogfhs=macos, FreeBSD sets syslogfhs=freebsd);
+	# only run the file-based checks when syslogfhs has not been determined yet.
+	if [ -z "${syslogfhs}" ]; then
+		if [ -x /opt/syslog-ng/bin/loggen ] ; then
+			syslogfhs=unix
+			echo "Unix-like FHS detected"
+		elif [ -d /etc/syslog-ng/ ]; then
+			syslogfhs=linux
+			echo "Linux-type FHS detected"
+		else
+			syslogfhs=unknown
+			confdir=/nonexistent
+			echo "No syslog-ng detected"
+		fi
 	fi
 }
 
@@ -1517,6 +1662,149 @@ setup_env_freebsd () {
 	}
 }
 
+setup_env_macos () {
+	# Overrides for tools that differ on macOS (Darwin)
+
+	# Network: macOS has no 'ip' command; use ifconfig / netstat
+	ipconfig="ifconfig -a"
+	netstatsu="netstat -s"
+
+	# ps: macOS ps has no -f (forest/tree) flag; -A replaces -e for all processes
+	pscmd="ps auxwww"
+	pseao="ps -Ao"
+
+	# ldd does not exist on macOS; otool -L lists dynamic libraries
+	# format_ldd_output parses paths from both ldd and otool -L output correctly
+	lddcmd="otool -L"
+
+	# vmstat on macOS is vm_stat (completely different command)
+	vmstat="vm_stat"
+
+	unset -f netstatnlp netstatlunp netstatpunt netstatpn routeconfig
+	unset -f free topcmd mypidof getsyslogpids myplimit
+	unset -f distpkgoffile distpkgstatus os_hash_helper
+
+	# netstat on macOS does not support -p for process names; use lsof if needed
+	netstatnlp  () { lsof -nP -iTCP -sTCP:LISTEN; }
+	netstatlunp () { lsof -nP -iUDP; }
+	netstatpunt () { netstat -anv; }
+	netstatpn   () { lsof -nP -i; }
+	routeconfig () { netstat -nr; }
+
+	# 'free' does not exist on macOS; vm_stat + sysctl give the same info
+	free () {
+		vm_stat
+		echo "---"
+		sysctl -n hw.memsize 2>/dev/null | awk '{printf "Total RAM: %d MB\n", $1/1024/1024}'
+	}
+
+	# top: use -l (logging / non-interactive) instead of Linux's -b
+	topcmd () { top -l 1 -s 0 > "${1}" 2>/dev/null; }
+
+	# 'pidof' does not exist on macOS; pgrep -x matches exact process name
+	mypidof     () { pgrep -x "$1" 2>/dev/null; }
+	getsyslogpids () { mypidof syslog-ng; }
+
+	# plimit is Solaris/Linux; no real per PID limits on macOS
+	myplimit () {
+		echo "Process info for PID $1:"
+		ps -o pid,ppid,user,%cpu,%mem,vsz,rss,command -p "$1"
+
+		echo
+		echo "Open file descriptor count:"
+		lsof -p "$1" 2>/dev/null | wc -l
+
+		echo
+		echo "Current shell limits (not PID-specific):"
+		ulimit -a 2>/dev/null
+
+		echo
+		echo "System-wide launchd limits:"
+		launchctl limit 2>/dev/null
+	}
+
+	# No system package manager maps individual library files on macOS
+	distpkgoffile () { echo "Package file lookup not supported on macOS (file: $1)"; }
+	distpkgstatus () { : ; }
+
+	# md5sum does not exist on macOS; md5 uses a different output format:
+	#   MD5 (filename) = <hash>  -->  <hash>  filename
+	os_hash_helper () {
+		find . -type f ! \( -name debun.manifest -o -name syslog-ng.debun.txt \) -exec md5 {} \; \
+			| sed -E 's:^MD5 \((.*)\) = ([a-f0-9]{32})$:\2  \1:'
+	}
+
+	# strace does not exist on macOS; dtruss is the closest but requires SIP disabled
+	if is_available dtruss; then
+		trace="dtruss -f"
+	else
+		trace="echo 'Syscall tracing unavailable: install dtruss or disable SIP first:'"
+	fi
+
+	# dmesg on macOS gives limited kernel ring buffer; the unified log is more useful
+	if is_available log; then
+		dmesg="log show --last 2h --style syslog"
+	fi
+
+	# Service management via launchd (replaces systemd / SysV init)
+	local sng_plist="/Library/LaunchDaemons/com.syslog-ng.syslog-ng.plist"
+	local sng_label="com.syslog-ng.syslog-ng"
+
+	initfile="${sng_plist}"
+
+	if [ -f "${sng_plist}" ]; then
+		# Prefer modern launchctl API when available
+		if launchctl help 2>/dev/null | grep -q bootstrap; then
+			service_stop="launchctl bootout system ${sng_plist}"
+			service_start="launchctl bootstrap system ${sng_plist}"
+		else
+			service_stop="launchctl unload ${sng_plist}"
+			service_start="launchctl load ${sng_plist}"
+		fi
+
+		# Modern status query
+		if launchctl help 2>/dev/null | grep -q "print"; then
+			service_status="launchctl print system/${sng_label}"
+		else
+			service_status="launchctl list ${sng_label}"
+		fi
+
+	else
+		unset service_stop service_start service_status
+	fi
+
+	# Override startup detection entirely: macOS uses launchd, not systemd/SMF/init
+	unset -f acquire_syslog_startup_method
+	acquire_syslog_startup_method () {
+		printf "Detecting init system: macOS launchd\n"
+
+		local plist="/Library/LaunchDaemons/com.syslog-ng.syslog-ng.plist"
+
+		if [ -f "${plist}" ]; then
+			cp "${plist}" "${tmpdir}/sys.startup.launchd.syslog-ng.plist"
+
+			if [ -n "${service_status}" ]; then
+				eval "${service_status}" \
+					> "${tmpdir}/sys.startup.launchctl-status" 2>&1 || true
+			fi
+
+		else
+			printf "No launchd plist found for syslog-ng\n" \
+				> "${tmpdir}/sys.startup.launchd.syslog-ng.plist"
+		fi
+
+		# Also collect any Balabit / Axoflow branded plists
+		for plist_file in \
+			/Library/LaunchDaemons/com.balabit.syslog-ng*.plist \
+			/Library/LaunchDaemons/com.axoflow.syslog-ng*.plist
+		do
+			[ -f "${plist_file}" ] && \
+				cp "${plist_file}" \
+				   "${tmpdir}/sys.startup.launchd.${plist_file##*/}"
+		done
+	}
+}
+
 setup_env_hpux () {
 	gzipcmd="/usr/contrib/bin/gzip -9"
 	lddcmd="/usr/ccs/bin/ldd"
@@ -1723,6 +2011,8 @@ setup_env() {
 		setup_env_hpux
 	elif [ "$os" = "AIX" ]; then
 		setup_env_aix
+	elif [ "$os" = "Darwin" ]; then
+		setup_env_macos
 	else
 		printf "Unkonwn or (yet) unhandled system\n"
 	fi
@@ -1741,6 +2031,8 @@ debun_run () {
 		debun_hpux
 	elif [ "$os" = "AIX" ]; then
 		debun_aix
+	elif [ "$os" = "Darwin" ]; then
+		debun_macos
 	fi
 }
 
@@ -1838,6 +2130,11 @@ debun_run
 
 [ "$syslogfhs" = "linux" ] && fhs_set_linux
 [ "$syslogfhs" = "unix" ] && fhs_set_unix
+[ "$syslogfhs" = "freebsd" ] && fhs_set_freebsd
+[ "$syslogfhs" = "macos" ] && fhs_set_macos
+
+# Re-apply the user-supplied -R value on top of whatever fhs_set_* has set.
+[ -n "$user_binprefix" ] && fhs_apply_binprefix_override
 
 run_specific_extras
 
