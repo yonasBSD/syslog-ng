@@ -10,7 +10,7 @@ ca-certificates       	        [centos, almalinux, fedora, debian, opensuse, rhe
 
 # packages required for criterion compilation (with cmake or meson)
 cmake                           [centos, almalinux, fedora, debian, opensuse, rhel, rocky, ubuntu]
-meson                           [fedora-rawhide, debian-testing]
+meson                           [fedora, debian-testing]
 nanopb                          [debian-testing]
 protobuf-compiler               [debian-testing]
 gcc-c++                         [centos, almalinux, fedora, opensuse, rhel, rocky]
