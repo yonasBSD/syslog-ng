@@ -1332,14 +1332,6 @@ detect_env_macos () {
 	sw_vers > "${tmpdir}/sys.macos.sw_vers" 2>/dev/null || true
 }
 
-detect_env_freebsd () {
-	# FreeBSD is always FreeBSD regardless of whether syslog-ng is installed.
-	# fhs_set_freebsd will apply the correct /usr/local paths unconditionally.
-	if [ ! -x /usr/local/sbin/syslog-ng ]; then
-		printf "WARNING: syslog-ng binary not found under /usr/local — syslog-ng may not be installed.\n"
-	fi
-}
-
 detect_env_linux () {
 	if is_available lsb_release ; then
 		lsb_release -a | tee ${tmpdir}/sys.linux.lsb-all
@@ -1364,6 +1356,8 @@ detect_env_linux () {
 }
 
 detect_env () {
+	local syslogfhs
+
 	echo "Start environment detection"
 
 	os=$( uname -s )
@@ -1373,7 +1367,6 @@ detect_env () {
 			syslogfhs=macos
 			;;
 		FreeBSD)
-			detect_env_freebsd
 			syslogfhs=freebsd
 			;;
 		Linux|SunOS|HP-UX|AIX)
@@ -1396,6 +1389,10 @@ detect_env () {
 			;;
 	esac
 
+	[ "$syslogfhs" = "linux" ] && fhs_set_linux
+	[ "$syslogfhs" = "unix" ] && fhs_set_unix
+	[ "$syslogfhs" = "freebsd" ] && fhs_set_freebsd
+	[ "$syslogfhs" = "macos" ] && fhs_set_macos
 }
 
 setup_env_debian () {
@@ -2044,7 +2041,6 @@ dump_env () {
 		os=${os}
 		workdir=${workdir}
 		dist=${dist}
-		syslogfhs=${syslogfhs}
 		binprefix=${binprefix}
 		user_binprefix=${user_binprefix}
 		syslogbin=${syslogbin}
@@ -2166,16 +2162,9 @@ fhs_set_paths_from_prefix "${binprefix}"
 
 debun_init
 detect_env
-setup_env
-
-[ "$syslogfhs" = "linux" ] && fhs_set_linux
-[ "$syslogfhs" = "unix" ] && fhs_set_unix
-[ "$syslogfhs" = "freebsd" ] && fhs_set_freebsd
-[ "$syslogfhs" = "macos" ] && fhs_set_macos
-
-# Re-apply the user-supplied -R value on top of whatever fhs_set_* has set.
+# Re-apply the user-supplied -R value on top of whatever fhs_set_* has set in detect_env
 [ -n "$user_binprefix" ] && fhs_apply_binprefix_override
-
+setup_env
 [ -n "${DUMP_ENV}" ] && dump_env
 
 debun_run
