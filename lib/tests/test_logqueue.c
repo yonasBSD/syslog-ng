@@ -123,8 +123,7 @@ _threaded_consume(gpointer st)
             }
         }
 
-      log_msg_ack(msg, &path_options, AT_PROCESSED);
-      log_msg_unref(msg);
+      log_msg_drop(msg, &path_options, AT_PROCESSED);
       msg_count++;
     }
 
