@@ -129,8 +129,8 @@ msg_limit_internal_message(const gchar *msg)
   return TRUE;
 }
 
-static gchar *
-msg_format_timestamp(gchar *buf, gsize buflen)
+gchar *
+msg_format_iso8601_timestamp(gchar *buf, gsize buflen)
 {
   UnixTime now;
   WallClockTime wct_now;
@@ -154,7 +154,7 @@ msg_send_formatted_message_to_stderr(const char *msg)
   if (skip_timestamp_on_stderr)
     fprintf(stderr, "%s\n", msg);
   else
-    fprintf(stderr, "[%s] %s\n", msg_format_timestamp(tmtime, sizeof(tmtime)), msg);
+    fprintf(stderr, "[%s] %s\n", msg_format_iso8601_timestamp(tmtime, sizeof(tmtime)), msg);
 }
 
 void
