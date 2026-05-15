@@ -259,8 +259,7 @@ threaded_consume(gpointer st)
             }
         }
 
-      log_msg_ack(msg, &path_options, AT_PROCESSED);
-      log_msg_unref(msg);
+      log_msg_drop(msg, &path_options, AT_PROCESSED);
     }
 
   main_loop_worker_thread_stop();
@@ -331,7 +330,8 @@ queue_new(gboolean reliable, DiskQueueOptions *options, const gchar *filename, c
   return log_queue_disk_non_reliable_new(options, filename, persist_name, STATS_LEVEL0, NULL, NULL);
 }
 
-ParameterizedTestParameters(diskq, testcase_diskbuffer_restart_corrupted)
+static restart_test_parameters *
+_get_testcase_diskbuffer_restart_corrupted_params(gsize *len)
 {
   static restart_test_parameters test_cases[] =
   {
@@ -339,56 +339,68 @@ ParameterizedTestParameters(diskq, testcase_diskbuffer_restart_corrupted)
     {"test-diskq-restart.rqf", TRUE},
   };
 
-  return cr_make_param_array(restart_test_parameters, test_cases, sizeof(test_cases) / sizeof(test_cases[0]));
+  *len = sizeof(test_cases) / sizeof(test_cases[0]);
+  return test_cases;
 }
 
-ParameterizedTest(restart_test_parameters *test_case, diskq, testcase_diskbuffer_restart_corrupted)
+/* Keep this as a plain Test + loop (not ParameterizedTest + ParameterizedTestParameters)
+ * the cases are pointer-based iovec entries, and we must avoid pointer payload transport through
+ * Criterion parameterization on macOS.
+ */
+Test(diskq, testcase_diskbuffer_restart_corrupted)
 {
-  guint64 const original_dcapacity = 1000123;
-  DiskQueueOptions options;
-  _construct_options(&options, original_dcapacity, 100000, test_case->reliable);
-  gchar *filename = test_case->filename;
-  LogQueue *q = queue_new(test_case->reliable, &options, filename, NULL);
+  gsize n_params;
+  restart_test_parameters *test_cases = _get_testcase_diskbuffer_restart_corrupted_params(&n_params);
 
-  gchar filename_corrupted_dq[100];
-  g_snprintf(filename_corrupted_dq, 100, "%s.corrupted", filename);
-  unlink(filename);
-  unlink(filename_corrupted_dq);
+  for (gsize i = 0; i < n_params; i++)
+    {
+      restart_test_parameters *test_case = &test_cases[i];
+      guint64 const original_dcapacity = 1000123;
+      DiskQueueOptions options;
+      _construct_options(&options, original_dcapacity, 100000, test_case->reliable);
+      gchar *filename = test_case->filename;
+      LogQueue *q = queue_new(test_case->reliable, &options, filename, NULL);
 
-  log_queue_disk_start(q);
-  fed_messages = 0;
-  feed_some_messages(q, 100);
-  cr_assert_eq(fed_messages, 100, "Failed to push all messages to the disk-queue!\n");
+      gchar filename_corrupted_dq[100];
+      g_snprintf(filename_corrupted_dq, 100, "%s.corrupted", filename);
+      unlink(filename);
+      unlink(filename_corrupted_dq);
 
-  LogQueueDisk *disk_queue = (LogQueueDisk *)q;
-  log_queue_disk_restart_corrupted(disk_queue);
+      log_queue_disk_start(q);
+      fed_messages = 0;
+      feed_some_messages(q, 100);
+      cr_assert_eq(fed_messages, 100, "Failed to push all messages to the disk-queue!\n");
 
-  struct stat file_stat;
-  cr_assert_eq(stat(filename, &file_stat), 0,
-               "New disk-queue file does not exists!!");
-  cr_assert_eq(S_ISREG(file_stat.st_mode), TRUE,
-               "New disk-queue file expected to be a regular file!! st_mode value=%04o",
-               (file_stat.st_mode & S_IFMT));
-  stat(filename_corrupted_dq, &file_stat);
-  cr_assert_eq(S_ISREG(file_stat.st_mode), TRUE,
-               "Corrupted disk-queue file does not exists!!");
-  cr_assert_str_eq(qdisk_get_filename(disk_queue->qdisk), filename,
-                   "New disk-queue file's name should be the same\n");
-  cr_assert_eq(qdisk_get_maximum_size(disk_queue->qdisk), original_dcapacity,
-               "Disk-queue option does not match the original configured value!\n");
-  cr_assert_eq(qdisk_get_length(disk_queue->qdisk), 0,
-               "New disk-queue file should be empty!\n");
-  cr_assert_eq(qdisk_get_writer_head(disk_queue->qdisk), QDISK_RESERVED_SPACE,
-               "Invalid write pointer!\n");
-  cr_assert_eq(qdisk_get_reader_head(disk_queue->qdisk), QDISK_RESERVED_SPACE,
-               "Invalid read pointer!\n");
+      LogQueueDisk *disk_queue = (LogQueueDisk *)q;
+      log_queue_disk_restart_corrupted(disk_queue);
 
-  gboolean persistent;
-  log_queue_disk_stop(q, &persistent);
-  log_queue_unref(q);
-  unlink(filename);
-  unlink(filename_corrupted_dq);
-  disk_queue_options_destroy(&options);
+      struct stat file_stat;
+      cr_assert_eq(stat(filename, &file_stat), 0,
+                   "New disk-queue file does not exists!!");
+      cr_assert_eq(S_ISREG(file_stat.st_mode), TRUE,
+                   "New disk-queue file expected to be a regular file!! st_mode value=%04o",
+                   (file_stat.st_mode & S_IFMT));
+      stat(filename_corrupted_dq, &file_stat);
+      cr_assert_eq(S_ISREG(file_stat.st_mode), TRUE,
+                   "Corrupted disk-queue file does not exists!!");
+      cr_assert_str_eq(qdisk_get_filename(disk_queue->qdisk), filename,
+                       "New disk-queue file's name should be the same\n");
+      cr_assert_eq(qdisk_get_maximum_size(disk_queue->qdisk), original_dcapacity,
+                   "Disk-queue option does not match the original configured value!\n");
+      cr_assert_eq(qdisk_get_length(disk_queue->qdisk), 0,
+                   "New disk-queue file should be empty!\n");
+      cr_assert_eq(qdisk_get_writer_head(disk_queue->qdisk), QDISK_RESERVED_SPACE,
+                   "Invalid write pointer!\n");
+      cr_assert_eq(qdisk_get_reader_head(disk_queue->qdisk), QDISK_RESERVED_SPACE,
+                   "Invalid read pointer!\n");
+
+      gboolean persistent;
+      log_queue_disk_stop(q, &persistent);
+      log_queue_unref(q);
+      unlink(filename);
+      unlink(filename_corrupted_dq);
+      disk_queue_options_destroy(&options);
+    }
 }
 
 static gboolean
@@ -463,7 +475,8 @@ testcase_diskq_prepare(DiskQueueOptions *options, diskq_tester_parameters_t *par
   return q;
 }
 
-ParameterizedTestParameters(diskq, test_diskq_statistics)
+static diskq_tester_parameters_t *
+_get_test_diskq_statistics_params(gsize *len)
 {
   static diskq_tester_parameters_t test_cases[] =
   {
@@ -477,7 +490,8 @@ ParameterizedTestParameters(diskq, test_diskq_statistics)
     { .disk_size = 1 * 1024, .reliable = FALSE, .overflow_expected = TRUE, .front_cache_size = 1, .filename = "file3.qf" }
   };
 
-  return cr_make_param_array(diskq_tester_parameters_t, test_cases, sizeof(test_cases) / sizeof(test_cases[0]));
+  *len = sizeof(test_cases) / sizeof(test_cases[0]);
+  return test_cases;
 }
 
 static inline void
@@ -496,42 +510,51 @@ assert_flow_control_window_length(diskq_tester_parameters_t *parameters, LogQueu
                "%"G_GSIZE_FORMAT" message in flow control window: line: %d", expected_length, __LINE__);
 }
 
-ParameterizedTest(diskq_tester_parameters_t *parameters, diskq, test_diskq_statistics)
+/* Keep this as a plain Test + loop (not ParameterizedTest + ParameterizedTestParameters)
+ * the cases are pointer-based iovec entries, and we must avoid pointer payload transport through
+ * Criterion parameterization on macOS.
+ */
+Test(diskq, test_diskq_statistics)
 {
-  LogQueue *q;
-  DiskQueueOptions options = {0};
+  gsize n_params;
+  diskq_tester_parameters_t *parameters = _get_test_diskq_statistics_params(&n_params);
 
-  q = testcase_diskq_prepare(&options, parameters);
+  for (gsize i = 0; i < n_params; i++)
+    {
+      diskq_tester_parameters_t *param = &parameters[i];
+      LogQueue *q;
+      DiskQueueOptions options = {0};
 
-  feed_some_messages(q, 1);
-  cr_assert_eq(stats_counter_get(q->metrics.shared.queued_messages), 1, "queued messages: line: %d", __LINE__);
+      q = testcase_diskq_prepare(&options, param);
 
-  if (parameters->overflow_expected)
-    assert_flow_control_window_length(parameters, q, 1);
+      feed_some_messages(q, 1);
+      cr_assert_eq(stats_counter_get(q->metrics.shared.queued_messages), 1, "queued messages: line: %d", __LINE__);
 
-  guint32 one_msg_size = stats_counter_get(q->metrics.shared.memory_usage);
-  if (parameters->overflow_expected)
-    /* Only when overflow. If there is no overflow, the first
-       msg is put to the output queue so statistics is not increased: one_msg_size == 0 */
-    cr_assert(is_valid_msg_size(one_msg_size), "one_msg_size %d: line: %d", one_msg_size, __LINE__);
-  else
-    cr_assert_eq(stats_counter_get(q->metrics.shared.memory_usage), 0, "queued messages: line: %d", __LINE__);
+      if (param->overflow_expected)
+        assert_flow_control_window_length(param, q, 1);
 
-  feed_some_messages(q, 1);
-  cr_assert_eq(stats_counter_get(q->metrics.shared.queued_messages), 2, "queued messages: line: %d", __LINE__);
-  cr_assert_eq(stats_counter_get(q->metrics.shared.memory_usage), one_msg_size * 2, "memory_usage: line: %d", __LINE__);
+      guint32 one_msg_size = stats_counter_get(q->metrics.shared.memory_usage);
+      if (param->overflow_expected)
+        cr_assert(is_valid_msg_size(one_msg_size), "one_msg_size %d: line: %d", one_msg_size, __LINE__);
+      else
+        cr_assert_eq(stats_counter_get(q->metrics.shared.memory_usage), 0, "queued messages: line: %d", __LINE__);
 
-  if (parameters->overflow_expected)
-    assert_flow_control_window_length(parameters, q, 2);
+      feed_some_messages(q, 1);
+      cr_assert_eq(stats_counter_get(q->metrics.shared.queued_messages), 2, "queued messages: line: %d", __LINE__);
+      cr_assert_eq(stats_counter_get(q->metrics.shared.memory_usage), one_msg_size * 2, "memory_usage: line: %d", __LINE__);
 
-  assert_general_message_flow(q, one_msg_size);
+      if (param->overflow_expected)
+        assert_flow_control_window_length(param, q, 2);
 
-  unlink(parameters->filename);
+      assert_general_message_flow(q, one_msg_size);
 
-  gboolean persistent;
-  log_queue_disk_stop(q, &persistent);
-  log_queue_unref(q);
-  disk_queue_options_destroy(&options);
+      unlink(param->filename);
+
+      gboolean persistent;
+      log_queue_disk_stop(q, &persistent);
+      log_queue_unref(q);
+      disk_queue_options_destroy(&options);
+    }
 }
 
 gchar *

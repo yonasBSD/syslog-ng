@@ -181,11 +181,16 @@ Test(wildcard_source, test_window_size)
 }
 
 
+/*
+ * Criterion parameter payloads must be self-contained here.
+ * We use fixed-size arrays (not pointers) to avoid pointer invalidation across
+ * worker process boundaries on macOS
+ */
 struct LegacyWildcardTestParams
 {
-  const gchar *path;
-  const gchar *expected_base_dir;
-  const gchar *expected_filename_pattern;
+  gchar path[64];
+  gchar expected_base_dir[64];
+  gchar expected_filename_pattern[64];
 };
 
 ParameterizedTestParameters(wildcard_source, test_legacy_wildcard)

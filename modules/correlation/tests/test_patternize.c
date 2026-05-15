@@ -90,11 +90,16 @@ _get_logmessages(const gchar *logs)
   return self;
 }
 
-typedef struct _patternize_params
+/*
+ * Criterion parameter payloads must be self-contained here.
+ * We use fixed-size arrays (not pointers) to avoid pointer invalidation across
+ * worker process boundaries on macOS
+ */
+typedef struct _PatternizeParams
 {
-  const gchar *logs;
+  gchar logs[256];
   guint support;
-  const gchar *expected;
+  gchar expected[256];
 } PatternizeParams;
 
 ParameterizedTestParameters(dbparser, test_frequent_words)

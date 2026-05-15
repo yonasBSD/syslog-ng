@@ -618,7 +618,8 @@ typedef struct _patterndb_test_param
   const gchar *expected_value;
 } PatternDBTestParam;
 
-ParameterizedTestParameters(pattern_db, test_rules)
+static PatternDBTestParam *
+_get_test_rules_params(gsize *len)
 {
   static PatternDBTestParam parser_params[] =
   {
@@ -668,17 +669,29 @@ ParameterizedTestParameters(pattern_db, test_rules)
     },
   };
 
-  return cr_make_param_array(PatternDBTestParam, parser_params, G_N_ELEMENTS(parser_params));
+  *len = G_N_ELEMENTS(parser_params);
+  return parser_params;
 }
 
-ParameterizedTest(PatternDBTestParam *param, pattern_db, test_rules)
+/* Keep this as a plain Test + loop (not ParameterizedTest + ParameterizedTestParameters)
+ * the cases are pointer-based iovec entries, and we must avoid pointer payload transport through
+ * Criterion parameterization on macOS.
+ */
+Test(pattern_db, test_rules)
 {
-  gchar *filename;
-  PatternDB *patterndb = _create_pattern_db(param->pattern_db, &filename);
-  assert_msg_with_program_matches_and_nvpair_equals(patterndb, param->program, param->message, param->name,
-                                                    param->expected_value);
-  _destroy_pattern_db(patterndb, filename);
-  g_free(filename);
+  gsize n_params;
+  PatternDBTestParam *params = _get_test_rules_params(&n_params);
+
+  for (gsize i = 0; i < n_params; i++)
+    {
+      PatternDBTestParam *param = &params[i];
+      gchar *filename;
+      PatternDB *patterndb = _create_pattern_db(param->pattern_db, &filename);
+      assert_msg_with_program_matches_and_nvpair_equals(patterndb, param->program, param->message, param->name,
+                                                        param->expected_value);
+      _destroy_pattern_db(patterndb, filename);
+      g_free(filename);
+    }
 }
 
 Test(pattern_db, test_tag_outside_of_rule_skeleton)

@@ -675,10 +675,15 @@ Test(basicfuncs, test_iterate)
   log_msg_unref(msg);
 }
 
+/*
+ * Criterion parameter payloads must be self-contained here.
+ * We use fixed-size arrays (not pointers) to avoid pointer invalidation across
+ * worker process boundaries on macOS
+ */
 struct test_params
 {
-  gchar *template;
-  char *expected;
+  gchar template[256];
+  gchar expected[256];
 };
 
 ParameterizedTestParameters(basicfuncs, test_map)

@@ -151,12 +151,19 @@ resolve_sockaddr_to_hostname(gsize *result_len, GSockAddr *saddr, const HostReso
   return test_hostname;
 }
 
+/*
+ * Criterion parameter payloads must be self-contained here.
+ * We use fixed-size arrays (not pointers) to avoid pointer invalidation across
+ * worker process boundaries on macOS.
+ * has_* members preserve NULL-vs-set semantics for optional string fields.
+ */
 typedef struct _MangleHostnameParams
 {
   gboolean keep_hostname;
   gboolean chain_hostnames;
-  const gchar *input_host;
-  const gchar *expected_hostname;
+  gchar input_host[64];
+  gboolean has_input_host;
+  gchar expected_hostname[128];
 
   guint32 msg_flags;
 } MangleHostnameParams;
@@ -165,16 +172,17 @@ ParameterizedTestParameters(log_source, test_mangle_hostname)
 {
   static MangleHostnameParams test_params[] =
   {
-    { .keep_hostname = TRUE, .chain_hostnames = FALSE, "msg-test-host", "msg-test-host" },
-    { .keep_hostname = TRUE, .chain_hostnames = FALSE, NULL, "resolved-test-host" },
-    { .keep_hostname = TRUE, .chain_hostnames = FALSE, "", "resolved-test-host" },
-    { .keep_hostname = TRUE, .chain_hostnames = TRUE, "msg-test-host", "msg-test-host" },
-    { .keep_hostname = FALSE, .chain_hostnames = TRUE, NULL, "resolved-test-host/resolved-test-host" },
-    { .keep_hostname = FALSE, .chain_hostnames = TRUE, "", "resolved-test-host/resolved-test-host" },
-    { .keep_hostname = FALSE, .chain_hostnames = FALSE, "msg-test-host", "resolved-test-host" },
-    { .keep_hostname = FALSE, .chain_hostnames = TRUE, "msg-test-host", "msg-test-host/resolved-test-host" },
+    { .keep_hostname = TRUE, .chain_hostnames = FALSE, .input_host = "msg-test-host", .has_input_host = TRUE, .expected_hostname = "msg-test-host" },
+    { .keep_hostname = TRUE, .chain_hostnames = FALSE, .input_host = "", .has_input_host = FALSE, .expected_hostname = "resolved-test-host" },
+    { .keep_hostname = TRUE, .chain_hostnames = FALSE, .input_host = "", .has_input_host = TRUE, .expected_hostname = "resolved-test-host" },
+    { .keep_hostname = TRUE, .chain_hostnames = TRUE, .input_host = "msg-test-host", .has_input_host = TRUE, .expected_hostname = "msg-test-host" },
+    { .keep_hostname = FALSE, .chain_hostnames = TRUE, .input_host = "", .has_input_host = FALSE, .expected_hostname = "resolved-test-host/resolved-test-host" },
+    { .keep_hostname = FALSE, .chain_hostnames = TRUE, .input_host = "", .has_input_host = TRUE, .expected_hostname = "resolved-test-host/resolved-test-host" },
+    { .keep_hostname = FALSE, .chain_hostnames = FALSE, .input_host = "msg-test-host", .has_input_host = TRUE, .expected_hostname = "resolved-test-host" },
+    { .keep_hostname = FALSE, .chain_hostnames = TRUE, .input_host = "msg-test-host", .has_input_host = TRUE, .expected_hostname = "msg-test-host/resolved-test-host" },
     {
-      .keep_hostname = FALSE, .chain_hostnames = TRUE, "msg-test-host", TEST_SOURCE_GROUP "@resolved-test-host",
+      .keep_hostname = FALSE, .chain_hostnames = TRUE, .input_host = "msg-test-host", .has_input_host = TRUE,
+      .expected_hostname = TEST_SOURCE_GROUP "@resolved-test-host",
       .msg_flags = LF_LOCAL
     },
   };
@@ -190,7 +198,7 @@ ParameterizedTest(MangleHostnameParams *test_params, log_source, test_mangle_hos
 
   LogMessage *msg = log_msg_new_empty();
 
-  if (test_params->input_host)
+  if (test_params->has_input_host)
     log_msg_set_value(msg, LM_V_HOST, test_params->input_host, -1);
 
   msg->flags |= test_params->msg_flags;

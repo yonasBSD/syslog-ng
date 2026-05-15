@@ -62,9 +62,14 @@ _construct_sample_message(void)
 /* Use the setup and teardown functions provided in test_filters_common.h */
 TestSuite(filter, .init = setup, .fini = teardown);
 
+/*
+ * Criterion parameter payloads must be self-contained here.
+ * We use fixed-size arrays (not pointers) to avoid pointer invalidation across
+ * worker process boundaries on macOS
+ */
 typedef struct _FilterParamBlank
 {
-  const gchar *name;
+  gchar name[64];
   gboolean expected_result;
 } FilterParamBlank;
 

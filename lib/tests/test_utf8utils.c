@@ -27,10 +27,15 @@
 
 #include "utf8utils.h"
 
+/*
+ * Criterion parameter payloads must be self-contained here.
+ * We use fixed-size arrays (not pointers) to avoid pointer invalidation across
+ * worker process boundaries on macOS
+ */
 typedef struct _StringValueList
 {
-  const gchar *str;
-  const gchar *expected_escaped_str;
+  gchar str[128];
+  gchar expected_escaped_str[128];
   guint32 unsafe_flags;
   gssize str_len;
 } StringValueList;

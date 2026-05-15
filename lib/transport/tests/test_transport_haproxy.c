@@ -63,11 +63,18 @@ _format_addresses(GString *value, LogTransportAuxData *aux)
 
 TestSuite(log_transport_proxy, .init = setup, .fini = teardown);
 
+/*
+ * Criterion parameter payloads must be self-contained here.
+ * We use fixed-size arrays (not pointers) to avoid pointer invalidation across
+ * worker process boundaries on macOS.
+ * has_* members preserve NULL-vs-set semantics for optional string fields.
+ */
 typedef struct
 {
-  const gchar *proxy_header;
+  gchar proxy_header[512];
   gboolean valid;
-  const gchar *addresses;
+  gchar addresses[128];
+  gboolean has_addresses;
   gint proxy_header_len;
 } ProtocolHeaderTestParams;
 
@@ -80,11 +87,13 @@ ParameterizedTestParameters(log_transport_proxy, test_proxy_protocol_parse_heade
     { "PROXY UNKNOWN extra ignored parameters\r\n",           TRUE, "" },
     {
       "PROXY TCP4 1.1.1.1 2.2.2.2 3333 4444\r\n",             TRUE,
-      .addresses = "source=AF_INET(1.1.1.1:3333) destination=AF_INET(2.2.2.2:4444)"
+      .addresses = "source=AF_INET(1.1.1.1:3333) destination=AF_INET(2.2.2.2:4444)",
+      .has_addresses = TRUE
     },
     {
       "PROXY TCP6 ::1 ::2 3333 4444\r\n",                     TRUE,
-      .addresses = "source=AF_INET6([::1]:3333) destination=AF_INET6([::2]:4444)"
+      .addresses = "source=AF_INET6([::1]:3333) destination=AF_INET6([::2]:4444)",
+      .has_addresses = TRUE
     },
 
     /* INVALID PROTO */
@@ -134,6 +143,7 @@ ParameterizedTestParameters(log_transport_proxy, test_proxy_protocol_parse_heade
     {
       "\r\n\r\n\0\r\nQUIT\n!\21\0\f\1\1\1\1\2\2\2\2\2025\255\234", TRUE,
       .addresses = "source=AF_INET(1.1.1.1:33333) destination=AF_INET(2.2.2.2:44444)",
+      .has_addresses = TRUE,
       .proxy_header_len = 28
     },
   };
@@ -166,7 +176,7 @@ ParameterizedTest(ProtocolHeaderTestParams *params, log_transport_proxy, test_pr
                "This should be %s: \n>>%.*s<<\n (rc=%d, errno=%d)", params->valid ? "valid" : "invalid", proxy_header_len,
                params->proxy_header, (gint) rc, errno);
 
-  if (rc == 0 && params->addresses)
+  if (rc == 0 && params->has_addresses)
     {
       GString *addresses = g_string_new(NULL);
 

@@ -97,10 +97,15 @@ _destroy_pattern_db(PatternDB *patterndb, gchar *filename)
   g_unlink(filename);
 }
 
-typedef struct _test_parsers_e2e_param
+/*
+ * Criterion parameter payloads must be self-contained here.
+ * We use fixed-size arrays (not pointers) to avoid pointer invalidation across
+ * worker process boundaries on macOS
+ */
+typedef struct _TestParsersE2EParam
 {
-  const gchar *rule;
-  const gchar *pattern;
+  gchar rule[64];
+  gchar pattern[64];
   gboolean match;
 } TestParsersE2EParam;
 

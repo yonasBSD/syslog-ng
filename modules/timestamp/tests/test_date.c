@@ -96,7 +96,8 @@ teardown(void)
 
 TestSuite(date, .init = setup, .fini = teardown);
 
-ParameterizedTestParameters(date, test_date_parser)
+static struct date_params *
+_get_test_date_parser_params(gsize *len)
 {
   static struct date_params params[] =
   {
@@ -185,30 +186,42 @@ ParameterizedTestParameters(date, test_date_parser)
 
   };
 
-  return cr_make_param_array(struct date_params, params, sizeof(params) / sizeof(struct date_params));
+  *len = sizeof(params) / sizeof(struct date_params);
+  return params;
 }
 
-ParameterizedTest(struct date_params *params, date, test_date_parser)
+/* Keep this as a plain Test + loop (not ParameterizedTest + ParameterizedTestParameters)
+ * the cases are pointer-based iovec entries, and we must avoid pointer payload transport through
+ * Criterion parameterization on macOS.
+ */
+Test(date, test_date_parser)
 {
-  LogMessage *logmsg;
-  LogParser *parser = _construct_parser(params->timezone_, params->format, params->time_stamp);
-  gboolean success;
-  GString *res = g_string_sized_new(128);
+  gsize n_params;
+  struct date_params *params = _get_test_date_parser_params(&n_params);
 
-  logmsg = _construct_logmsg(params->msg);
-  success = log_parser_process(parser, &logmsg, NULL, log_msg_get_value(logmsg, LM_V_MESSAGE, NULL), -1);
+  for (gsize i = 0; i < n_params; i++)
+    {
+      struct date_params *p = &params[i];
+      LogMessage *logmsg;
+      LogParser *parser = _construct_parser(p->timezone_, p->format, p->time_stamp);
+      gboolean success;
+      GString *res = g_string_sized_new(128);
 
-  cr_assert(success, "unable to parse format=%s msg=%s", params->format, params->msg);
+      logmsg = _construct_logmsg(p->msg);
+      success = log_parser_process(parser, &logmsg, NULL, log_msg_get_value(logmsg, LM_V_MESSAGE, NULL), -1);
 
-  append_format_unix_time(&logmsg->timestamps[params->time_stamp], res, TS_FMT_ISO, -1, 0);
+      cr_assert(success, "unable to parse format=%s msg=%s", p->format, p->msg);
 
-  cr_assert_str_eq(res->str, params->expected,
-                   "incorrect date parsed msg=%s format=%s, result=%s, expected=%s",
-                   params->msg, params->format, res->str, params->expected);
+      append_format_unix_time(&logmsg->timestamps[p->time_stamp], res, TS_FMT_ISO, -1, 0);
 
-  g_string_free(res, TRUE);
-  log_pipe_unref(&parser->super);
-  log_msg_unref(logmsg);
+      cr_assert_str_eq(res->str, p->expected,
+                       "incorrect date parsed msg=%s format=%s, result=%s, expected=%s",
+                       p->msg, p->format, res->str, p->expected);
+
+      g_string_free(res, TRUE);
+      log_pipe_unref(&parser->super);
+      log_msg_unref(logmsg);
+    }
 }
 
 Test(date, test_date_with_additional_text_at_the_end)
@@ -231,7 +244,8 @@ struct date_with_multiple_formats_params
   int expected_usec;
 };
 
-ParameterizedTestParameters(date, test_date_with_multiple_formats)
+static struct date_with_multiple_formats_params *
+_get_test_date_with_multiple_formats_params(gsize *len)
 {
   static struct date_with_multiple_formats_params params[] =
   {
@@ -240,34 +254,45 @@ ParameterizedTestParameters(date, test_date_with_multiple_formats)
     { "2019-05-04T21:55:46.989+02:00", 989000 },
   };
 
-  return cr_make_param_array(struct date_with_multiple_formats_params, params,
-                             sizeof (params) / sizeof(struct date_with_multiple_formats_params));
+  *len = sizeof(params) / sizeof(struct date_with_multiple_formats_params);
+  return params;
 }
 
-ParameterizedTest(struct date_with_multiple_formats_params *params, date, test_date_with_multiple_formats)
+/* Keep this as a plain Test + loop (not ParameterizedTest + ParameterizedTestParameters)
+ * the cases are pointer-based iovec entries, and we must avoid pointer payload transport through
+ * Criterion parameterization on macOS.
+ */
+Test(date, test_date_with_multiple_formats)
 {
-  LogParser *parser;
-  GList *formats;
-  formats = g_list_prepend(NULL, g_strdup("%FT%T.%f%z"));
-  formats = g_list_prepend(formats, g_strdup("%F %T,%f"));
-  formats = g_list_prepend(formats, g_strdup("%F %T"));
+  gsize n_params;
+  struct date_with_multiple_formats_params *params = _get_test_date_with_multiple_formats_params(&n_params);
 
-  parser = date_parser_new (configuration);
-  date_parser_set_formats(parser, formats);
-  date_parser_set_time_stamp(parser, LM_TS_STAMP);
+  for (gsize i = 0; i < n_params; i++)
+    {
+      struct date_with_multiple_formats_params *p = &params[i];
+      LogParser *parser;
+      GList *formats;
+      formats = g_list_prepend(NULL, g_strdup("%FT%T.%f%z"));
+      formats = g_list_prepend(formats, g_strdup("%F %T,%f"));
+      formats = g_list_prepend(formats, g_strdup("%F %T"));
 
-  LogMessage *logmsg = _construct_logmsg(params->msg);
+      parser = date_parser_new(configuration);
+      date_parser_set_formats(parser, formats);
+      date_parser_set_time_stamp(parser, LM_TS_STAMP);
 
-  gboolean success = log_parser_process(parser, &logmsg, NULL, log_msg_get_value(logmsg, LM_V_MESSAGE, NULL), -1);
+      LogMessage *logmsg = _construct_logmsg(p->msg);
 
-  cr_assert(success, "unable to parse msg=%s with a list of formats", params->msg);
+      gboolean success = log_parser_process(parser, &logmsg, NULL, log_msg_get_value(logmsg, LM_V_MESSAGE, NULL), -1);
 
-  cr_assert(logmsg->timestamps[LM_TS_STAMP].ut_usec == params->expected_usec, "expected %d us, got %d",
-            params->expected_usec,
-            logmsg->timestamps[LM_TS_STAMP].ut_usec);
-  log_msg_unref(logmsg);
+      cr_assert(success, "unable to parse msg=%s with a list of formats", p->msg);
 
-  log_pipe_unref(&parser->super);
+      cr_assert(logmsg->timestamps[LM_TS_STAMP].ut_usec == p->expected_usec, "expected %d us, got %d",
+                p->expected_usec,
+                logmsg->timestamps[LM_TS_STAMP].ut_usec);
+      log_msg_unref(logmsg);
+
+      log_pipe_unref(&parser->super);
+    }
 }
 
 Test(date, test_date_with_guess_timezone)

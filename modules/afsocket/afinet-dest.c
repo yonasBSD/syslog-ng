@@ -628,8 +628,7 @@ afinet_dd_spoof_write_message(AFInetDestDriver *self, LogMessage *msg, const Log
     }
 
   /* we have finished processing msg */
-  log_msg_ack(msg, path_options, AT_PROCESSED);
-  log_msg_unref(msg);
+  log_msg_drop(msg, path_options, AT_PROCESSED);
 
 finish:
   g_mutex_unlock(&self->lnet_lock);

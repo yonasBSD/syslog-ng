@@ -53,10 +53,15 @@ typedef struct _CounterHashContent
   gssize initial_value;
 } CounterHashContent;
 
+/*
+ * Criterion parameter payloads must be self-contained here.
+ * We use fixed-size arrays (not pointers) to avoid pointer invalidation across
+ * worker process boundaries on macOS
+ */
 typedef struct _QueryTestCase
 {
-  const gchar *pattern;
-  const gchar *expected;
+  gchar pattern[128];
+  gchar expected[256];
 } QueryTestCase;
 
 typedef void(*ClusterKeySet)(StatsClusterKey *, guint16, const gchar *, const gchar *);

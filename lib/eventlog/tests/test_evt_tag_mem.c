@@ -25,11 +25,16 @@
 #include <evtlog.h>
 #include <criterion/parameterized.h>
 
+/*
+ * Criterion parameter payloads must be self-contained here.
+ * We use fixed-size arrays (not pointers) to avoid pointer invalidation across
+ * worker process boundaries on macOS
+ */
 struct evt_tag_mem_params
 {
-  gchar *original_value;
+  gchar original_value[16];
   gsize original_value_len;
-  gchar *new_value;
+  gchar new_value[16];
 };
 
 ParameterizedTestParameters(evt_tag_mem, test)

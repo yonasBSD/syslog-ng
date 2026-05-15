@@ -125,10 +125,15 @@ Test(format_welf, test_space)
   log_msg_unref(msg);
 }
 
+/*
+ * Criterion parameter payloads must be self-contained here.
+ * We use fixed-size arrays (not pointers) to avoid pointer invalidation across
+ * worker process boundaries on macOS
+ */
 struct test_params
 {
-  gchar *template;
-  gchar *expected;
+  gchar template[256];
+  gchar expected[256];
 };
 
 ParameterizedTestParameters(format_welf, key_and_exclude)
