@@ -6,6 +6,7 @@ queries:
   - uses: security-and-quality
 
 paths-ignore:
+  - "build/**"
   - "tests/**"
   - "**/*.md"
   - "**/*.txt"
