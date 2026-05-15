@@ -178,6 +178,7 @@ jobs:
             cc: gcc
 
     uses: ./.github/workflows/devshell-build.yml
+    name: Build @ ${{ matrix.image.name }} on ${{ matrix.platform }}
     with:
       build-tool: ${{ matrix.build-tool }}
       cc: ${{ matrix.cc }}
