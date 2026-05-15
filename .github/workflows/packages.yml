@@ -72,6 +72,7 @@ jobs:
         "ubuntu-jammy",
         "ubuntu-noble",
         "ubuntu-plucky",
+        "ubuntu-resolute",
         "rhel-8",
         "rhel-9",
         "rhel-10",

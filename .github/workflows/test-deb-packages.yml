@@ -30,6 +30,7 @@ jobs:
           - "ubuntu:jammy"
           - "ubuntu:noble"
           - "ubuntu:plucky"
+          - "ubuntu:resolute"
           # NOTE: These are RPM based distros, so they are tested in the test-rpm-packages.yml workflow
           # - "rhel-8"
           # - "rhel-9"

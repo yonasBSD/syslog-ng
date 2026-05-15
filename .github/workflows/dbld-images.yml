@@ -65,6 +65,7 @@ jobs:
           - ubuntu-jammy
           - ubuntu-noble
           - ubuntu-plucky
+          - ubuntu-resolute
           - rhel-8
           - rhel-9
           - rhel-10
@@ -90,6 +91,9 @@ jobs:
             platform: ubuntu-22.04-arm
             arch: arm64
           - image: ubuntu-plucky
+            platform: ubuntu-22.04-arm
+            arch: arm64
+          - image: ubuntu-resolute
             platform: ubuntu-22.04-arm
             arch: arm64
           - image: rhel-8
