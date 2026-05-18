@@ -1255,36 +1255,41 @@ debun_freebsd() {
 debun_extra_macos () {
 	printf "\nmacOS specific checks\n"
 
-	# Hardware / software info (replaces dmidecode + lspci)
+	# Kernel extensions (replaces lsmod) - no PII
+	if is_available kextstat; then
+		kextstat > "${tmpdir}/sys.kextstat" 2>/dev/null
+	fi
+
+	# Homebrew syslog-ng package info - only syslog-related package names
+	if is_available brew; then
+		brew list --versions 2>/dev/null | grep -i syslog > "${tmpdir}/brew.packages" || true
+		brew info syslog-ng > "${tmpdir}/brew.info.syslog-ng" 2>/dev/null || true
+	fi
+
+	# MacPorts syslog-ng package info - only syslog-related package names
+	if is_available port; then
+		port installed 2>/dev/null | grep -i syslog > "${tmpdir}/macports.packages" || true
+		port info syslog-ng > "${tmpdir}/macports.info.syslog-ng" 2>/dev/null || true
+	fi
+
+	#the items below this point may expose hardware identifiers (serial, UUID),
+	#host/user names, or arbitrary user/app data from the unified system log;
+	#skip them in privacy mode (mirrors debun_extra_genlinux behaviour)
+	[ -n "$privacy_mode" ] && return
+
+	# Hardware / software info (replaces dmidecode + lspci) - serial, UUID, PCI fingerprint, hostname, username
 	if is_available system_profiler; then
 		system_profiler SPHardwareDataType > "${tmpdir}/sys.macos.hardware" 2>/dev/null
 		system_profiler SPPCIDataType      > "${tmpdir}/sys.macos.pci"      2>/dev/null
 		system_profiler SPSoftwareDataType > "${tmpdir}/sys.macos.software" 2>/dev/null
 	fi
 
-	# Kernel extensions (replaces lsmod)
-	if is_available kextstat; then
-		kextstat > "${tmpdir}/sys.kextstat" 2>/dev/null
-	fi
-
-	# CPU / hardware info (replaces /proc/cpuinfo)
+	# CPU / hardware info (replaces /proc/cpuinfo) - may include hw.uuid / hw.serial
 	sysctl -a 2>/dev/null | grep -E '^(hw\.|machdep\.cpu\.)' > "${tmpdir}/sys.cpuinfo"
 
-	# Recent unified system log (supplements dmesg)
+	# Recent unified system log (supplements dmesg) - may contain unrelated user/app activity
 	if is_available log; then
 		log show --last 2h --style syslog > "${tmpdir}/sys.macos.unifiedlog" 2>/dev/null || true
-	fi
-
-	# Homebrew syslog-ng package info
-	if is_available brew; then
-		brew list --versions 2>/dev/null | grep -i syslog > "${tmpdir}/brew.packages" || true
-		brew info syslog-ng > "${tmpdir}/brew.info.syslog-ng" 2>/dev/null || true
-	fi
-
-	# MacPorts syslog-ng package info
-	if is_available port; then
-		port installed 2>/dev/null | grep -i syslog > "${tmpdir}/macports.packages" || true
-		port info syslog-ng > "${tmpdir}/macports.info.syslog-ng" 2>/dev/null || true
 	fi
 }
 
