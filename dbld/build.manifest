@@ -51,6 +51,7 @@ ubuntu-focal		python3,nocriterion,nomqtt,nogrpc,nobpf,notzdatalegacy
 ubuntu-jammy		python3,nobpf,notzdatalegacy
 ubuntu-noble		python3,nobpf,notzdatalegacy
 ubuntu-plucky		python3,notzdatalegacy
+ubuntu-resolute		python3,notzdatalegacy
 
 fedora				python3
 almalinux			python3

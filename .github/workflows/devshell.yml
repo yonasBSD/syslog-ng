@@ -54,6 +54,7 @@ jobs:
         # ubuntu-jammy        |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
         # ubuntu-noble        |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
         # ubuntu-plucky       |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
+        # ubuntu-resolute     |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
         # rhel-8              |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
         # rhel-9              |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
         # rhel-10             |   x   |           |  x  |   x   |   x    |       |   x   |   x  |     x     |
@@ -111,6 +112,7 @@ jobs:
             configure_flags: "--disable-ebpf"
             cmake_configure_flags: "-DENABLE_EBPF=OFF"
           - name: ubuntu-plucky
+          - name: ubuntu-resolute
           - name: rhel-8
             configure_flags: "--disable-ebpf --with-python=3.9"
             cmake_configure_flags: "-DENABLE_EBPF=OFF -DPYTHON_VERSION=3.9"
@@ -178,6 +180,7 @@ jobs:
             cc: gcc
 
     uses: ./.github/workflows/devshell-build.yml
+    name: Build @ ${{ matrix.image.name }} on ${{ matrix.platform }}
     with:
       build-tool: ${{ matrix.build-tool }}
       cc: ${{ matrix.cc }}

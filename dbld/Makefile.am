@@ -47,6 +47,7 @@ EXTRA_DIST += \
 	dbld/images/ubuntu-jammy.dockerfile \
 	dbld/images/ubuntu-noble.dockerfile \
 	dbld/images/ubuntu-plucky.dockerfile \
+	dbld/images/ubuntu-resolute.dockerfile \
 	dbld/images/rhel-8.dockerfile \
 	dbld/images/rhel-9.dockerfile \
 	dbld/images/rhel-10.dockerfile \

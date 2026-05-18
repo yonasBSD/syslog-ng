@@ -174,6 +174,8 @@ syslog-ng packages are released for the following distribution versions:
 
 | Distro version | sources.list component name | Arch | stable | nightly |
 |---|---|---|---|---|
+| Ubuntu 26.04    | ubuntu-resolute       | x86-64 | [stable](https://ose-repo.syslog-ng.com/apt/dists/stable/ubuntu-resolute/binary-amd64/)       | [nightly](https://ose-repo.syslog-ng.com/apt/dists/nightly/ubuntu-resolute/binary-amd64/) |
+| Ubuntu 26.04    | ubuntu-resolute-arm64 | arm64  | [stable](https://ose-repo.syslog-ng.com/apt/dists/stable/ubuntu-resolute-arm64/binary-arm64/) | [nightly](https://ose-repo.syslog-ng.com/apt/dists/nightly/ubuntu-resolute-arm64/binary-arm64/) |
 | Ubuntu 25.04    | ubuntu-plucky         | x86-64 | [stable](https://ose-repo.syslog-ng.com/apt/dists/stable/ubuntu-plucky/binary-amd64/)         | [nightly](https://ose-repo.syslog-ng.com/apt/dists/nightly/ubuntu-plucky/binary-amd64/) |
 | Ubuntu 25.04    | ubuntu-plucky-arm64   | arm64  | [stable](https://ose-repo.syslog-ng.com/apt/dists/stable/ubuntu-plucky-arm64/binary-arm64/)   | [nightly](https://ose-repo.syslog-ng.com/apt/dists/nightly/ubuntu-plucky-arm64/binary-arm64/) |
 | Ubuntu 24.04    | ubuntu-noble          | x86-64 | [stable](https://ose-repo.syslog-ng.com/apt/dists/stable/ubuntu-noble/binary-amd64/)          | [nightly](https://ose-repo.syslog-ng.com/apt/dists/nightly/ubuntu-noble/binary-amd64/) |

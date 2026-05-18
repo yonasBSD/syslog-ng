@@ -54,8 +54,8 @@ which                           [fedora, opensuse, rhel, rocky]
 # eBPF related tools
 #############################################################################
 
-libbpf-dev                      [devshell, tarball, debian, ubuntu-plucky]
-bpftool                         [devshell, tarball, debian, ubuntu-plucky]
+libbpf-dev                      [devshell, tarball, debian, ubuntu-plucky, ubuntu-resolute]
+bpftool                         [devshell, tarball, debian, ubuntu-plucky, ubuntu-resolute]
 
 #############################################################################
 # Tarball related tools
@@ -121,7 +121,7 @@ libmongoc-dev                   [debian]
 
 # Our ivykis fork has uring support, let's use it in the devshell and the
 # packages we provide
-liburing-dev                    [debian, ubuntu-jammy, ubuntu-noble, ubuntu-plucky, devshell]
+liburing-dev                    [debian, ubuntu-jammy, ubuntu-noble, ubuntu-plucky, ubuntu-resolute, devshell]
 liburing-devel                  [opensuse, rhel, rocky]
 
 #############################################################################
@@ -184,7 +184,7 @@ snmptrapd                       [devshel, ubuntu, debian]
 dwarves                         [devshell]
 jq                              [devshell]
 curl                            [devshell]
-tzdata-legacy                   [ubuntu-noble, ubuntu-plucky, debian-trixie]
+tzdata-legacy                   [ubuntu-noble, ubuntu-plucky, ubuntu-resolute, debian-trixie]
 
 #############################################################################
 # Test requirements in devshell (and other platforms)

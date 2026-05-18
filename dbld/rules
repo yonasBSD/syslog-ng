@@ -23,6 +23,8 @@ BUILDER_IMAGES=	\
 	ubuntu-noble-arm64	\
 	ubuntu-plucky	\
 	ubuntu-plucky-arm64	\
+	ubuntu-resolute	\
+	ubuntu-resolute-arm64	\
 	rhel-8 \
 	rhel-8-arm64 \
 	rhel-9 \
