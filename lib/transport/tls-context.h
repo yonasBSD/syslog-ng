@@ -26,6 +26,7 @@
 
 #include "transport/tls-verifier.h"
 #include "transport/tls-session.h"
+#include "file-perms.h"
 #include "messages.h"
 
 typedef enum
@@ -76,6 +77,7 @@ struct _TLSContext
     gchar *keylog_file_path;
     FILE *keylog_file;
     GMutex keylog_file_lock;
+    FilePermOptions keylog_file_perm_options;
   };
   gchar *cert_file;
   gchar *dhparam_file;
