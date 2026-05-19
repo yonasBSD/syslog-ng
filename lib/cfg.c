@@ -584,7 +584,7 @@ cfg_run_parser_with_main_context(GlobalConfig *self, CfgLexer *lexer, CfgParser 
 }
 
 static void
-cfg_dump_processed_config(GString *preprocess_output, gchar *output_filename)
+cfg_dump_processed_config(GlobalConfig *cfg, GString *preprocess_output, gchar *output_filename)
 {
   FILE *output_file;
 
@@ -594,7 +594,7 @@ cfg_dump_processed_config(GString *preprocess_output, gchar *output_filename)
       return;
     }
 
-  output_file = fopen(output_filename, "w+");
+  output_file = file_perm_options_fopen(&cfg->file_perm_options, output_filename, "w+");
   if (!output_file)
     {
       msg_error("Error opening preprocess-into file",
@@ -691,7 +691,7 @@ cfg_read_config(GlobalConfig *self, const gchar *fname, gchar *preprocess_into)
 
       if (preprocess_into)
         {
-          cfg_dump_processed_config(self->preprocess_config, preprocess_into);
+          cfg_dump_processed_config(self, self->preprocess_config, preprocess_into);
         }
 
       if (self->user_version == 0)

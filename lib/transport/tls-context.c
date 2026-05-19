@@ -23,6 +23,8 @@
 
 #include "transport/tls-context.h"
 #include "messages.h"
+#include "cfg.h"
+#include "file-perms.h"
 #include "compat/openssl_support.h"
 #include "secret-storage/secret-storage.h"
 #include "string-list.h"
@@ -99,7 +101,6 @@ _write_line_to_keylog_file(const char *file_path, const char *line, FILE *keylog
   if (!keylog_file)
     return;
 
-
   g_mutex_lock(mutex);
   gint ret_val = fprintf(keylog_file, "%s\n", line);
   if (ret_val != strlen(line) +1)
@@ -126,7 +127,7 @@ _setup_keylog_file(TLSContext *self)
   if (!self->keylog_file_path)
     return TRUE;
 
-  self->keylog_file = fopen(self->keylog_file_path, "a");
+  self->keylog_file = file_perm_options_fopen(&self->keylog_file_perm_options, self->keylog_file_path, "a");
   if (!self->keylog_file)
     {
       msg_error("Error opening keylog-file",
@@ -983,6 +984,14 @@ tls_context_new(TLSMode mode, const gchar *location)
   self->verify_mode = TVM_REQUIRED | TVM_TRUSTED;
   self->ssl_options = TSO_NOSSLv2;
   self->location = g_strdup(location ? : "n/a");
+
+  /* Snapshot perm()/owner()/group() defaults now: tls_context_new() runs
+   * during parsing while `configuration' is valid; the keylog file is
+   * opened later when it is no longer (see lib/mainloop.c). */
+  if (configuration)
+    self->keylog_file_perm_options = configuration->file_perm_options;
+  else /* Only unit tests instantiate a TLSContext without a live `configuration'. */
+    file_perm_options_global_defaults(&self->keylog_file_perm_options);
 
   if (self->mode == TM_CLIENT)
     self->ssl_ctx = SSL_CTX_new(SSLv23_client_method());
