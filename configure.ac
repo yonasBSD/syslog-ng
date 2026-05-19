@@ -664,6 +664,12 @@ AC_ARG_ENABLE(all-modules,
     AS_HELP_STRING([--enable-all-modules], [Forcibly enable all modules. (default: auto)]),
     , enable_all_modules="auto")
 
+AC_ARG_ENABLE([scl-syslogconf-awk],
+  [AS_HELP_STRING([--disable-scl-syslogconf-awk],
+                  [Do not install scl/syslogconf/convert-syslogconf.awk])],
+  [],
+  [enable_scl_syslogconf_awk=yes])
+
 if test "x$enable_all_modules" != "xauto"; then
    state="$enable_all_modules"
 
@@ -2759,6 +2765,7 @@ AM_CONDITIONAL([HAVE_GETRANDOM], [test x$ac_cv_func_getrandom = xyes])
 AM_CONDITIONAL([HAVE_FMEMOPEN], [test x$ac_cv_func_fmemopen = xyes])
 AM_CONDITIONAL([HAVE_JAVAH], [test -n "$JAVAH_BIN"])
 AM_CONDITIONAL(ENABLE_IPV6, [test $enable_ipv6 = yes])
+AM_CONDITIONAL([ENABLE_SCL_SYSLOGCONF_AWK], [test "x$enable_scl_syslogconf_awk" = "xyes"])
 
 AM_CONDITIONAL(OS_TYPE_MACOS, [test $ostype = "Darwin"])
 AM_CONDITIONAL(OS_TYPE_FREEBSD, [test $ostype = "FreeBSD"])

@@ -71,6 +71,9 @@ scl-install-data-local:
 		$(install_sh_DATA) $(srcdir)/scl/scl.conf  $(DESTDIR)/$(config_includedir)/scl.conf; \
 	fi
 	(cd $(srcdir)/scl; tar cf - $(SCL_SUBDIRS)) | (cd $(DESTDIR)/$(scldir) && tar xf - --no-same-owner)
+if !ENABLE_SCL_SYSLOGCONF_AWK
+	rm -f $(DESTDIR)/$(scldir)/syslogconf/convert-syslogconf.awk
+endif
 	chmod -R u+rwX $(DESTDIR)/$(scldir)
 
 scl-uninstall-local:
