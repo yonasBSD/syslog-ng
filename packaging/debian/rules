@@ -111,6 +111,15 @@ endif
 # Oh, the joys of configure!
 # We pass down all appropriate options, along with EXTRA_CONFIGURE_OPTS.
 # This also sets SOURCE_REVISION to the debian package version.
+#
+# NOTE: the configure call below uses --with-ivykis=internal (bundled).
+# This is intentional and asymmetric with the RHEL/Fedora spec, which
+# uses --with-ivykis=system. The Debian/openSUSE packaging culture
+# favours engineering trade-offs (the in-tree ivykis tracks features
+# we rely on, e.g. better behaviour for file sources, and avoids
+# regressions from older system ivykis versions), while the RHEL/Fedora
+# side is compliance-driven (packaging guidelines disallow bundled libs)
+# and large downstream RPM users have explicitly asked for the system one.
 override_dh_auto_configure:
 	install -d debian/build-tree
 	-rm -rf doc/man/*.?

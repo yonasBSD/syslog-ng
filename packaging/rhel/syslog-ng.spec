@@ -51,6 +51,11 @@ BuildRequires: libtool
 BuildRequires: bison
 BuildRequires: flex
 BuildRequires: glib2-devel
+# NOTE: RHEL/Fedora packaging guidelines disallow bundled copies of
+# system libraries, and several large downstream RPM users have
+# explicitly asked us to link against the distro ivykis. Hence
+# --with-ivykis=system below (and the matching runtime Requires:).
+# The Debian build, by contrast, intentionally uses --with-ivykis=internal.
 BuildRequires: ivykis-devel
 BuildRequires: json-c-devel
 BuildRequires: libcap-devel
@@ -160,6 +165,8 @@ BuildRequires: clang
 %endif
 
 Requires: logrotate
+# See the BuildRequires: ivykis-devel note above: RPM is built
+# --with-ivykis=system, so the distro ivykis is a hard runtime dep.
 Requires: ivykis >= %{ivykis_ver}
 
 Provides: syslog
@@ -438,6 +445,8 @@ ryslog is not on the system.
 
 %build
 
+# See the BuildRequires: ivykis-devel note above for why this is
+# --with-ivykis=system (and asymmetric with the Debian build).
 %configure \
     --prefix=%{_prefix} \
     --sysconfdir=%{_sysconfdir}/%{name} \
