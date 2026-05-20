@@ -21,6 +21,11 @@ on:
         required: false
         type: boolean
         default: true
+      update-dockerhub-description:
+        required: false
+        type: boolean
+        default: false
+        description: "Update the Docker Hub repository overview (README) from docker/dockerhub-overview-<type>.md"
     secrets:
       dockerhub-username:
         required: true
@@ -56,6 +61,15 @@ on:
         type: boolean
         default: false
         description: "Push to Docker Hub (uncheck (use false) for testing)"
+      update-dockerhub-description:
+        required: true
+        type: boolean
+        default: false
+        description: "Update the Docker Hub repository overview (README) from docker/dockerhub-overview-<type>.md"
+
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
   publish-docker-image:
@@ -202,3 +216,16 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-results.sarif"
+
+      - name: Update Docker Hub repository overview
+        # Only when actually pushing to Docker Hub AND the caller opted in.
+        # The overview file is picked per packaging flavor so balabit/syslog-ng
+        # and balabit/syslog-ng-rpm each get their own description.
+        if: ${{ inputs.pkg-push != false && inputs.update-dockerhub-description == true }}
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.dockerhub-username || secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.dockerhub-password || secrets.DOCKERHUB_PASSWORD }}
+          repository: ${{ env.DOCKER_IMAGE_NAME }}
+          readme-filepath: docker/dockerhub-overview-${{ inputs.pkg-image-type }}.md
+          short-description: ${{ inputs.pkg-image-type == 'rpm' && 'syslog-ng OSE on AlmaLinux 9 (systemd-managed, all modules included)' || 'syslog-ng OSE on Debian (entrypoint-managed, all modules included)' }}
