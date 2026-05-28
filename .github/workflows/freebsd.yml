@@ -207,6 +207,11 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE; pwd
 
+          # Run the bundled ivykis self-tests too. syslog-ng's own
+          # `check` target does not recurse into the ivykis
+          # ExternalProject
+          make -C build/ivykis-install/src/IVYKIS-build check -j ${THREADS}
+
           cmake --build ./build -j ${THREADS} --target check
 
       - name: autotools build
@@ -251,5 +256,10 @@ jobs:
         shell: freebsd {0}
         run: |
           cd $GITHUB_WORKSPACE; pwd
+
+          # Run the bundled ivykis self-tests too. syslog-ng's own
+          # `make check` does not recurse into lib/ivykis (it is in
+          # DIST_SUBDIRS, not SUBDIRS)
+          /usr/local/bin/gmake -C build/lib/ivykis check -j ${THREADS}
 
           /usr/local/bin/gmake -C build check -j ${THREADS}
