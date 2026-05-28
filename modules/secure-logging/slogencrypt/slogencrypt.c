@@ -27,11 +27,13 @@
 #include <string.h>
 #include <errno.h>
 #include <locale.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <openssl/crypto.h>
+
 #include "messages.h"
 #include "slog.h"
 #include "compat/string.h"
-#include <fcntl.h>
-#include <sys/stat.h>
 
 //
 // main logic: 0 usually indicates success, and non-zero values indicate an error
@@ -81,6 +83,7 @@ int main(int argc, char *argv[])
       g_print("!g_opton_context_parse, argc: %d\n", argc);
       GString *errorMsg = g_string_new(error->message);
       (void) slog_usage(context, group, errorMsg);
+      g_error_free(error);
       return 1; //-- ERROR
     }
 
@@ -97,6 +100,7 @@ int main(int argc, char *argv[])
 
   //-- When error then goto cleanup section -----
   char *line = NULL;
+  int f_descriptor = -1;
   FILE *fp_outputFile = NULL;
   FILE *fp_inputFile = NULL;
   guchar key[KEY_LENGTH];
@@ -122,6 +126,7 @@ int main(int argc, char *argv[])
                 evt_tag_str("Reason",
                             "Option --mac-file or -m does not provide a valid path to a MAC file!"));
       (void) slog_usage(context, group, NULL);
+      context = NULL;
       retval = 1; //-- ERROR
       goto CLEANUP_SLOGENCRYPT;
     }
@@ -139,6 +144,7 @@ int main(int argc, char *argv[])
       {
         msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Key-file validation failed"));
         (void) slog_usage(context, group, NULL);
+        context = NULL;
         retval = 1;
         goto CLEANUP_SLOGENCRYPT;
       }
@@ -153,6 +159,7 @@ int main(int argc, char *argv[])
                 evt_tag_str("Reason",
                             "Option --mac-file or -m does not provide a valid path to a MAC file!"));
       (void) slog_usage(context, group, NULL);
+      context = NULL;
       retval = 1; //-- ERROR
       goto CLEANUP_SLOGENCRYPT;
     }
@@ -169,6 +176,7 @@ int main(int argc, char *argv[])
       {
         msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Check of mac-file failed"));
         (void) slog_usage(context, group, NULL);
+        context = NULL;
         retval = 1; //-- ERROR
         goto CLEANUP_SLOGENCRYPT;
       }
@@ -182,10 +190,9 @@ int main(int argc, char *argv[])
   index = 1;
   if (NULL == argv[index])
     {
-      // Safe. Will not be reached due check of argc above
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Path to NEWKEY is missing!"));
       (void) slog_usage(context, group, NULL);
-      g_assert_not_reached();
+      context = NULL;
       retval = 1; //-- ERROR
       goto CLEANUP_SLOGENCRYPT;
     }
@@ -200,6 +207,7 @@ int main(int argc, char *argv[])
       {
         msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Check of NEWKEY failed"));
         (void) slog_usage(context, group, NULL);
+        context = NULL;
         retval = 1; //-- ERROR
         goto CLEANUP_SLOGENCRYPT;
       }
@@ -209,10 +217,9 @@ int main(int argc, char *argv[])
   //-- NEWMAC (outputMAC) ---
   if (NULL == argv[index])
     {
-      // Safe. Will not be reached due check of argc above
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Path to NEWMAC is missing"));
       (void) slog_usage(context, group, NULL);
-      g_assert_not_reached();
+      context = NULL;
       retval = 1; //-- ERROR
       goto CLEANUP_SLOGENCRYPT;
     }
@@ -227,6 +234,7 @@ int main(int argc, char *argv[])
       {
         msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Check of NEWMAC failed"));
         (void) slog_usage(context, group, NULL);
+        context = NULL;
         retval = 1; //-- ERROR
         goto CLEANUP_SLOGENCRYPT;
       }
@@ -236,10 +244,9 @@ int main(int argc, char *argv[])
   //-- INPUTLOG ---
   if (NULL == argv[index])
     {
-      // Safe. Will not be reached due check of argc above
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Path to INPUTLOG is missing"));
       (void) slog_usage(context, group, NULL);
-      g_assert_not_reached();
+      context = NULL;
       retval = 1; //-- ERROR
       goto CLEANUP_SLOGENCRYPT;
     }
@@ -255,6 +262,7 @@ int main(int argc, char *argv[])
       {
         msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Check of INPUTLOG failed"));
         (void) slog_usage(context, group, NULL);
+        context = NULL;
         retval = 1; //-- ERROR
         goto CLEANUP_SLOGENCRYPT;
       }
@@ -264,10 +272,9 @@ int main(int argc, char *argv[])
   //-- OUTPUTLOG ---
   if (NULL == argv[index])
     {
-      // Safe. Will not be reached due check of argc above
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Path to OUTPUTLOG is missing"));
       (void) slog_usage(context, group, NULL);
-      g_assert_not_reached();
+      context = NULL;
       retval = 1; //-- ERROR
       goto CLEANUP_SLOGENCRYPT;
     }
@@ -282,6 +289,7 @@ int main(int argc, char *argv[])
       {
         msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Check of OUTPUTLOG failed"));
         (void) slog_usage(context, group, NULL);
+        context = NULL;
         retval = 1; //-- ERROR
         goto CLEANUP_SLOGENCRYPT;
       }
@@ -335,10 +343,10 @@ int main(int argc, char *argv[])
   // Open output file
   // CI GitHub CodeQL / File created without restricting permissions:
   // outputFile = fopen(outputlogpath,  "w");
-  int fd = open(gstr_path_outputlog->str, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-  if (fd != -1)
+  f_descriptor = open(gstr_path_outputlog->str, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+  if (f_descriptor != -1)
     {
-      fp_outputFile = fdopen(fd, "w");
+      fp_outputFile = fdopen(f_descriptor, "w");
     }
   if (NULL == fp_outputFile)
     {
@@ -459,7 +467,18 @@ int main(int argc, char *argv[])
           goto CLEANUP_SLOGENCRYPT;
         }
 
-      fprintf(fp_outputFile, "%s\n", result->str);
+      int ret_fprintf = fprintf(fp_outputFile, "%s\n", result->str);
+      if (ret_fprintf < 0)
+        {
+          GString *gstr_error_msg = g_string_new(NULL);
+          g_string_printf(gstr_error_msg, "fprintf failed! Error: %s (code %d)\n", strerror(errno), errno);
+          msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", gstr_error_msg->str));
+          g_string_free(gstr_error_msg, TRUE);
+          g_string_free(result, TRUE);
+          g_string_free(inputGString, TRUE);
+          retval = -1; //-- ERROR, failed to write file
+          goto CLEANUP_SLOGENCRYPT;
+        }
 
       // Update keys, MAC, etc
       memcpy(mac, outputmacdata, CMAC_LENGTH);
@@ -508,23 +527,45 @@ int main(int argc, char *argv[])
 
 CLEANUP_SLOGENCRYPT:
 
+  //-- erasure of sensitive data
+  OPENSSL_cleanse(key, sizeof key);
+  OPENSSL_cleanse(mac, sizeof mac);
+
   if (NULL != fp_inputFile)
     {
       fclose(fp_inputFile);
       fp_inputFile = NULL;
     }
+
   if (NULL != fp_outputFile)
     {
+      fflush(fp_outputFile);
+      int fd = fileno(fp_outputFile);
+      if (-1 != fd)
+        {
+          fsync(fd);
+        }
       fclose(fp_outputFile);
       fp_outputFile = NULL;
     }
-  g_option_context_free(context);
-  context = NULL;
+  else if (f_descriptor >= 0)
+    {
+      //-- fd was opened but not wrapped in a stream
+      close(f_descriptor);
+      f_descriptor = -1;
+    }
+
+  if (NULL != context)
+    {
+      g_option_context_free(context);
+      context = NULL;
+    }
   if (NULL != line)
     {
       free(line);
       line = NULL;
     }
+
   g_string_free(gstr_path_hostkey, TRUE);
   gstr_path_hostkey = NULL;
   g_string_free(gstr_path_inputMAC, TRUE);
@@ -546,6 +587,9 @@ CLEANUP_SLOGENCRYPT:
     {
       msg_info("slogencrypt: Error occurred.");
     }
+
+  //-- Release messaging resources
+  msg_deinit();
 
   return retval; //-- 0 when SUCCES
 }

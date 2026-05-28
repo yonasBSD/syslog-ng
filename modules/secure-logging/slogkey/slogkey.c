@@ -32,6 +32,7 @@
 #include <openssl/rand.h>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
+#include <openssl/crypto.h>
 
 #include "messages.h"
 #include "slog.h"
@@ -68,6 +69,7 @@ int main(int argc, char **argv)
     {
       g_print("Invalid option: %s\n", error->message);
       g_error_free(error);
+      g_option_context_free(context);
       exit (1);
     }
 
@@ -147,6 +149,8 @@ int main(int argc, char **argv)
               ret = -1; //-- ERROR
             }
         }
+      msg_deinit();
+      OPENSSL_cleanse(masterkey, sizeof masterkey); //-- erasure of sensitive data
       return ret;
     }
   else if (counter)
@@ -159,10 +163,11 @@ int main(int argc, char **argv)
       if (!success)
         {
           msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Unable to read key file"), evt_tag_str("file", keyfile));
-          // bug wrong value assigned  return ret;
+          msg_deinit();
           return -1; //-- ERROR
         }
       g_print("counter=%" G_GUINT64_FORMAT "\n", counterValue);
+      OPENSSL_cleanse(key, sizeof key); //-- erasure of sensitive data
     }
   else if (host)
     {
@@ -203,8 +208,11 @@ int main(int argc, char **argv)
                   ret = -1; //-- ERROR
                 }
             }
+          OPENSSL_cleanse(hostKey, sizeof hostKey); //-- erasure of sensitive data
         }
+      OPENSSL_cleanse(masterKey, sizeof masterKey); //-- erasure of sensitive data
     }
+
 
   // Release messaging resources
   msg_deinit();

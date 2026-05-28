@@ -28,6 +28,8 @@
 
 #include <glib.h>
 #include <locale.h>
+#include <openssl/crypto.h>
+
 #include "messages.h"
 #include "slog.h"
 
@@ -50,26 +52,23 @@ gboolean normalMode(char *path_hostkey, char *path_MACfile, char *path_inputlog,
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason",
                                                "Initial key k0 is required for verification and decryption but the supplied key read has a counter > 0."),
                 evt_tag_long("Counter", counter));
+      OPENSSL_cleanse(key, sizeof key);
       return FALSE; //-- ERROR
     }
 
   msg_info(SLOG_INFO_PREFIX, evt_tag_str("Reason", "Reading MAC file"), evt_tag_str("name", path_MACfile));
-  FILE *fp_bigMAC = fopen(path_MACfile, "r");
-  if (fp_bigMAC == NULL)
+  if ( ! g_file_test(path_MACfile, G_FILE_TEST_IS_REGULAR))
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Unable to read MAC"), evt_tag_str("file", path_MACfile));
+      OPENSSL_cleanse(key, sizeof key);
       return FALSE; //-- ERROR
-    }
-  else
-    {
-      fclose(fp_bigMAC);
-      fp_bigMAC = NULL;
     }
 
   guchar MAC[CMAC_LENGTH]; //-- aggregated MAC
   if (!readAggregatedMAC(path_MACfile, MAC))
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Unable to read MAC"), evt_tag_str("file", path_MACfile));
+      OPENSSL_cleanse(key, sizeof key);
       return FALSE; //-- ERROR
     }
 
@@ -92,6 +91,9 @@ gboolean normalMode(char *path_hostkey, char *path_MACfile, char *path_inputlog,
   else
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Invalid pathMac0")); //-- fileVerify will fail later
+      OPENSSL_cleanse(MAC0, sizeof MAC0);
+      OPENSSL_cleanse(MAC, sizeof MAC);
+      OPENSSL_cleanse(key, sizeof key);
       return FALSE; //-- ERROR
     }
 
@@ -100,19 +102,23 @@ gboolean normalMode(char *path_hostkey, char *path_MACfile, char *path_inputlog,
   if (fp_input == NULL)
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Unable to open inputlog"), evt_tag_str("file", path_inputlog));
+      OPENSSL_cleanse(MAC0, sizeof MAC0);
+      OPENSSL_cleanse(MAC, sizeof MAC);
+      OPENSSL_cleanse(key, sizeof key);
       return FALSE; //-- ERROR
     }
 
   // Scan through file ones
   guint64 entries = 0;
-  while (!feof(fp_input))
+  int c;
+  while ((c = fgetc(fp_input)) != EOF)
     {
-      char c = fgetc(fp_input);
       if (c == '\n')
         {
           entries++;
         }
     }
+
   fclose(fp_input);
   fp_input = NULL;
 
@@ -126,6 +132,10 @@ gboolean normalMode(char *path_hostkey, char *path_MACfile, char *path_inputlog,
                                entries,
                                bufsize,
                                MAC0);
+
+  OPENSSL_cleanse(key, sizeof key);
+  OPENSSL_cleanse(MAC, sizeof MAC);
+  OPENSSL_cleanse(MAC0, sizeof MAC0);
   if (!result)
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason",
@@ -154,42 +164,36 @@ gboolean iterativeMode(char *path_prevKey, char *path_prevMAC, char *path_curMAC
     }
 
   msg_info(SLOG_INFO_PREFIX, evt_tag_str("Reason", "Reading previous MAC file"), evt_tag_str("name", path_prevMAC));
-  FILE *fp_previousBigMAC = fopen(path_prevMAC, "r");
-  if (fp_previousBigMAC == NULL)
+  if ( ! g_file_test(path_prevMAC, G_FILE_TEST_IS_REGULAR))
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Unable to readprevious MAC"), evt_tag_str("file", path_prevMAC));
+      OPENSSL_cleanse(previousKey, sizeof previousKey);
       return FALSE; //-- ERROR
-    }
-  else
-    {
-      fclose(fp_previousBigMAC);
-      fp_previousBigMAC = NULL;
     }
 
   guchar previousMAC[CMAC_LENGTH];
   if (!readAggregatedMAC(path_prevMAC, previousMAC))
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Unable to read previous MAC"), evt_tag_str("file", path_prevMAC));
+      OPENSSL_cleanse(previousKey, sizeof previousKey);
       return FALSE; //-- ERROR
     }
 
   msg_info(SLOG_INFO_PREFIX, evt_tag_str("Reason", "Reading current MAC file"), evt_tag_str("name", path_curMAC));
-  FILE *fp_currentBigMAC = fopen(path_curMAC, "r");
-  if (fp_currentBigMAC == NULL)
+  if ( ! g_file_test(path_curMAC, G_FILE_TEST_IS_REGULAR))
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Unable to read current MAC"), evt_tag_str("file", path_curMAC));
+      OPENSSL_cleanse(previousKey, sizeof previousKey);
+      OPENSSL_cleanse(previousMAC, sizeof previousMAC);
       return FALSE; //-- ERROR
-    }
-  else
-    {
-      fclose(fp_currentBigMAC);
-      fp_currentBigMAC = NULL;
     }
 
   guchar currentMAC[CMAC_LENGTH];
   if (!readAggregatedMAC(path_curMAC, currentMAC))
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Unable to read current MAC"), evt_tag_str("file", path_curMAC));
+      OPENSSL_cleanse(previousKey, sizeof previousKey);
+      OPENSSL_cleanse(previousMAC, sizeof previousMAC);
       return FALSE; //-- ERROR
     }
 
@@ -197,19 +201,23 @@ gboolean iterativeMode(char *path_prevKey, char *path_prevMAC, char *path_curMAC
   if (fp_input == NULL)
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Unable to open input log"), evt_tag_str("file", path_inputlog));
+      OPENSSL_cleanse(previousKey, sizeof previousKey);
+      OPENSSL_cleanse(previousMAC, sizeof previousMAC);
+      OPENSSL_cleanse(currentMAC, sizeof currentMAC);
       return FALSE; //-- ERROR
     }
 
   // Scan through file ones
   guint64 entries = 0;
-  while (!feof(fp_input))
+  int c;
+  while ((c = fgetc(fp_input)) != EOF)
     {
-      char c = fgetc(fp_input);
       if (c == '\n')
         {
           entries++;
         }
     }
+
   fclose(fp_input);
   fp_input = NULL;
 
@@ -225,6 +233,9 @@ gboolean iterativeMode(char *path_prevKey, char *path_prevMAC, char *path_curMAC
                                         bufsize,
                                         previousKeyCounter);
 
+  OPENSSL_cleanse(previousKey, sizeof previousKey);
+  OPENSSL_cleanse(previousMAC, sizeof previousMAC);
+  OPENSSL_cleanse(currentMAC, sizeof currentMAC);
   if (!result)
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason",
@@ -295,6 +306,7 @@ int main(int argc, char *argv[])
     {
       GString *errorMsg = g_string_new(error->message);
       (void) slog_usage(context, group, errorMsg);
+      g_error_free(error);
       return 1; //-- ERROR
     }
 
@@ -326,6 +338,7 @@ int main(int argc, char *argv[])
                     evt_tag_str("Reason",
                                 "Option --key-file or -k does not provide a valid path to a key file!"));
           (void) slog_usage(context, group, NULL);
+          context = NULL;
           retval = 1; //-- ERROR
           goto CLEANUP_SLOGVERIFY;
         }
@@ -343,6 +356,7 @@ int main(int argc, char *argv[])
           {
             msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Key-file validation failed"));
             (void) slog_usage(context, group, NULL);
+            context = NULL;
             retval = 1;
             goto CLEANUP_SLOGVERIFY;
           }
@@ -362,6 +376,7 @@ int main(int argc, char *argv[])
                 evt_tag_str("Reason",
                             "Option --mac-file or -m does not provide a valid path to a mac file!"));
       (void) slog_usage(context, group, NULL);
+      context = NULL;
       retval = 1; //-- ERROR
       goto CLEANUP_SLOGVERIFY;
     }
@@ -379,6 +394,7 @@ int main(int argc, char *argv[])
       {
         msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "mac-file validation failed"));
         (void) slog_usage(context, group, NULL);
+        context = NULL;
         retval = 1;
         goto CLEANUP_SLOGVERIFY;
       }
@@ -395,6 +411,7 @@ int main(int argc, char *argv[])
                                 "Option --prev-key-file or -p does not provide a valid path to a prev key file!"));
 
           (void) slog_usage(context, group, NULL);
+          context = NULL;
           retval = 1; //-- ERROR
           goto CLEANUP_SLOGVERIFY;
         }
@@ -412,6 +429,7 @@ int main(int argc, char *argv[])
           {
             msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "prev-key-file validation failed"));
             (void) slog_usage(context, group, NULL);
+            context = NULL;
             retval = 1;
             goto CLEANUP_SLOGVERIFY;
           }
@@ -434,6 +452,7 @@ int main(int argc, char *argv[])
                                 "Option --prev-mac-file or -r does not provide valid path to a prev MAC file!"));
 
           (void) slog_usage(context, group, NULL);
+          context = NULL;
           retval = 1; //-- ERROR
           goto CLEANUP_SLOGVERIFY;
         }
@@ -451,6 +470,7 @@ int main(int argc, char *argv[])
           {
             msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "prev-mac-file validation failed"));
             (void) slog_usage(context, group, NULL);
+            context = NULL;
             retval = 1;
             goto CLEANUP_SLOGVERIFY;
           }
@@ -467,6 +487,7 @@ int main(int argc, char *argv[])
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Path to INPUTLOG is missing"));
       (void) slog_usage(context, group, NULL);
+      context = NULL;
       retval = 1; //-- ERROR
       goto CLEANUP_SLOGVERIFY;
     }
@@ -482,6 +503,7 @@ int main(int argc, char *argv[])
       {
         msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Check of INPUTLOG failed"));
         (void) slog_usage(context, group, NULL);
+        context = NULL;
         retval = 1; //-- ERROR
         goto CLEANUP_SLOGVERIFY;
       }
@@ -493,6 +515,7 @@ int main(int argc, char *argv[])
     {
       msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Path to OUTPUTLOG is missing"));
       (void) slog_usage(context, group, NULL);
+      context = NULL;
       retval = 1; //-- ERROR
       goto CLEANUP_SLOGVERIFY;
     }
@@ -507,6 +530,7 @@ int main(int argc, char *argv[])
       {
         msg_error(SLOG_ERROR_PREFIX, evt_tag_str("Reason", "Check of OUTPUTLOG failed"));
         (void) slog_usage(context, group, NULL);
+        context = NULL;
         retval = 1; //-- ERROR
         goto CLEANUP_SLOGVERIFY;
       }
@@ -586,6 +610,12 @@ CLEANUP_SLOGVERIFY:
 
   // Release messaging resources
   msg_deinit();
-  g_option_context_free(context);
+
+  if (NULL != context)
+    {
+      g_option_context_free(context);
+      context = NULL;
+    }
+
   return retval;
 }
