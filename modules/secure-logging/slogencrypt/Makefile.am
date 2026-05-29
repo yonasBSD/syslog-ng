@@ -1,8 +1,8 @@
 # File: syslog-ng/modules/secure-logging/slogencrypt/Makefile.am
 
-bin_PROGRAMS += modules/secure-logging/slogencrypt/slogencrypt
+if ENABLE_SLOG
 
-EXTRA_DIST += modules/secure-logging/slogencrypt/CMakeLists.txt
+bin_PROGRAMS += modules/secure-logging/slogencrypt/slogencrypt
 
 modules_secure_logging_slogencrypt_slogencrypt_SOURCES = \
 	modules/secure-logging/slogencrypt/slogencrypt.c
@@ -16,3 +16,7 @@ modules_secure_logging_slogencrypt_slogencrypt_LDADD = \
 	$(top_builddir)/lib/libsyslog-ng.la \
 	$(top_builddir)/modules/secure-logging/libsyslog-ng-secure-logging.la \
 	@TOOL_DEPS_LIBS@
+
+endif
+
+EXTRA_DIST += modules/secure-logging/slogencrypt/CMakeLists.txt

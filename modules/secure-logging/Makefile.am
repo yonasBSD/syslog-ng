@@ -1,5 +1,7 @@
 # File: syslog-ng/modules/secure-logging/Makefile.am
 
+if ENABLE_SLOG
+
 noinst_LTLIBRARIES += modules/secure-logging/libsyslog-ng-secure-logging.la
 module_LTLIBRARIES += modules/secure-logging/libsecure-logging.la
 
@@ -37,13 +39,15 @@ modules_secure_logging_libsecure_logging_la_LDFLAGS = $(MODULE_LDFLAGS) $(OPENSS
 
 EXTRA_modules_secure_logging_libsecure_logging_la_DEPENDENCIES = $(MODULE_DEPS_LIBS) $(LIBSYSLOG_SECURE_LOGGING)
 
-EXTRA_DIST += modules/secure-logging/CMakeLists.txt
-
 modules/secure-logging modules/secure-logging/ mod-secure-logging: \
 	modules/secure-logging/libsyslog-ng-secure-logging.la \
 	modules/secure-logging/slogkey/slogkey \
 	modules/secure-logging/slogencrypt/slogencrypt \
 	modules/secure-logging/slogverify/slogverify
+
+endif
+
+EXTRA_DIST += modules/secure-logging/CMakeLists.txt
 
 .PHONY: modules/secure-logging/ mod-secure-logging
 

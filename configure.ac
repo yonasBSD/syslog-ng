@@ -489,6 +489,10 @@ AC_ARG_ENABLE(ebpf,
     AS_HELP_STRING([--enable-ebpf], [Enable support for loading of eBPF programs (default: no)]),
     , enable_ebpf="no")
 
+AC_ARG_ENABLE(slog,
+    AS_HELP_STRING([--enable-slog], [Enable secure logging (slog) module and CLI tools from Airbus (default: no)]),
+    , enable_slog="no")
+
 AC_ARG_ENABLE(gcov,
     AS_HELP_STRING([--enable-gcov], [Enable coverage profiling (default: no)]),
     , enable_gcov="no")
@@ -676,7 +680,7 @@ if test "x$enable_all_modules" != "xauto"; then
    # TODO: atomate collection of modules somehow
    MODULES="spoof_source sun_streams sql pacct mongodb json amqp stomp \
             redis systemd geoip2 riemann ipv6 smtp native python python_modules java java_modules \
-            http afsnmp kafka mqtt grpc"
+            http afsnmp kafka mqtt grpc ebpf slog"
    for mod in ${MODULES}; do
        modstate=$(eval echo \$enable_${mod})
        if test "x$modstate" = "xauto"; then
@@ -2725,6 +2729,7 @@ AM_CONDITIONAL(ENABLE_SUN_STREAMS, [test "$enable_sun_streams" = "yes"])
 AM_CONDITIONAL(ENABLE_DARWIN_OSL, [test "$enable_darwin_osl" = "yes"])
 AM_CONDITIONAL(ENABLE_OPENBSD_SYSTEM_SOURCE, [test "$enable_openbsd_system_source" = "yes"])
 AM_CONDITIONAL(ENABLE_EBPF, [test "$enable_ebpf" = "yes"])
+AM_CONDITIONAL(ENABLE_SLOG, [test "$enable_slog" = "yes"])
 AM_CONDITIONAL(ENABLE_PACCT, [test "$enable_pacct" = "yes"])
 AM_CONDITIONAL(ENABLE_MONGODB, [test "$enable_mongodb" = "yes"])
 AM_CONDITIONAL(ENABLE_SMTP, [test "$enable_smtp" = "yes"])
@@ -2986,6 +2991,7 @@ print_config_line "Java" "${enable_java:=no}"
 print_config_line "Java modules" "${enable_java_modules:=no}"
 print_config_line "afsnmp module" "${enable_afsnmp:=no}"
 print_config_line "eBPF module" "${enable_ebpf:=no}"
+print_config_line "Secure logging - slog (module)" "${enable_slog:=no}"
 print_config_line "native bindings" "${enable_native:=no}"
 print_config_line "Example modules" "${enable_example_modules:=yes}"
 print_heading ""

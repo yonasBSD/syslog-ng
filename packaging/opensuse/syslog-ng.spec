@@ -68,6 +68,10 @@ Source4:        %{name}-service-prepare
 %bcond_with	mongodb
 %bcond_with	amqp
 
+# Secure logging (slog) is disabled by default in the official RPM
+# packages. Build with `--with slog` to enable it.
+%bcond_with	slog
+
 
 
 %if %{defined _rundir}
@@ -453,6 +457,19 @@ This package provides faster UDP log collection for syslog-ng using bpf
 
 %endif
 
+%if %{with slog}
+
+%package slog
+Summary:        Secure logging (slog) support for syslog-ng
+Group:          System/Daemons
+Requires:       %{name} = %{version}
+
+%description slog
+This package provides the $(slog) template function and the slogkey,
+slogencrypt and slogverify command line utilities for syslog-ng.
+
+%endif
+
 %prep
 %setup -q -n syslog-ng-%{version}
 # fill out placeholders in the config,
@@ -501,6 +518,11 @@ export BPFTOOL=/usr/sbin/bpftool
 %if %{with grpc}
 	--enable-cpp				\
 	--enable-grpc				\
+%endif
+%if %{with slog}
+	--enable-slog				\
+%else
+	--disable-slog				\
 %endif
 	--enable-afsnmp				\
 %if %{with mqtt}
@@ -715,9 +737,6 @@ chmod 640 "${additional_sockets#/}"
 %attr(755,root,root) %{_bindir}/pdbtool
 %attr(755,root,root) %{_bindir}/dqtool
 %attr(755,root,root) %{_bindir}/persist-tool
-%attr(755,root,root) %{_bindir}/slogencrypt
-%attr(755,root,root) %{_bindir}/slogkey
-%attr(755,root,root) %{_bindir}/slogverify
 %attr(755,root,root) %{_bindir}/syslog-ng-update-virtualenv
 %{_mandir}/man5/syslog-ng.conf.5*
 %{_mandir}/man8/syslog-ng.8*
@@ -727,10 +746,6 @@ chmod 640 "${additional_sockets#/}"
 %{_mandir}/man1/dqtool.1*
 %{_mandir}/man1/syslog-ng-debun.1*
 %{_mandir}/man1/persist-tool.1*
-%{_mandir}/man1/slogencrypt.1*
-%{_mandir}/man1/slogkey.1*
-%{_mandir}/man1/slogverify.1*
-%{_mandir}/man7/secure-logging.7*
 %dir %{_libdir}/syslog-ng
 %dir %{_libdir}/syslog-ng/loggen
 %dir %{_datadir}/syslog-ng
@@ -836,7 +851,6 @@ chmod 640 "${additional_sockets#/}"
 %attr(755,root,root) %{_libdir}/syslog-ng/libsystem-source.so
 %attr(755,root,root) %{_libdir}/syslog-ng/libhook-commands.so
 %attr(755,root,root) %{_libdir}/syslog-ng/libazure-auth-header.so
-%attr(755,root,root) %{_libdir}/syslog-ng/libsecure-logging.so
 %attr(755,root,root) %{_libdir}/syslog-ng/libregexp-parser.so
 %attr(755,root,root) %{_libdir}/syslog-ng/libpacctformat.so
 %attr(755,root,root) %{_libdir}/syslog-ng/librate-limit-filter.so
@@ -1072,6 +1086,22 @@ chmod 640 "${additional_sockets#/}"
 %defattr(-,root,root)
 %dir %{_libdir}/syslog-ng
 %attr(755,root,root) %{_libdir}/syslog-ng/libebpf.so
+
+%endif
+
+%if %{with slog}
+
+%files slog
+%defattr(-,root,root)
+%dir %{_libdir}/syslog-ng
+%attr(755,root,root) %{_libdir}/syslog-ng/libsecure-logging.so
+%attr(755,root,root) %{_bindir}/slogencrypt
+%attr(755,root,root) %{_bindir}/slogkey
+%attr(755,root,root) %{_bindir}/slogverify
+%{_mandir}/man1/slogencrypt.1*
+%{_mandir}/man1/slogkey.1*
+%{_mandir}/man1/slogverify.1*
+%{_mandir}/man7/secure-logging.7*
 
 %endif
 
