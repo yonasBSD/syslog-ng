@@ -12,7 +12,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Li
       "link, or runtime issues due to library and ABI mismatches. "
       "If all dependencies were rebuilt with GNU g++, it might work.${ResetFG}"
     )
-    module_switch(ENABLE_GRPC "Enable GRPC modules (requires C++17)" OFF)
+    module_switch(ENABLE_GRPC "Enable GRPC modules (requires C++20)" OFF)
   elseif (ENABLE_GRPC)
     set(ENABLE_GRPC_WARNING_STR "WARNING: using GNU g++ on non-Linux may cause ABI/library mismatches, see the configure log above" CACHE INTERNAL "GRPC enable warning")
     message(WARNING
@@ -91,10 +91,23 @@ if ((NOT DEFINED ENABLE_GRPC OR ENABLE_GRPC) AND (NOT DEFINED ENABLE_CPP OR ENAB
   endif()
 endif()
 
-module_switch(ENABLE_GRPC "Enable GRPC modules (requires C++17)" GRPC_DEPS_FOUND)
+# gRPC requires at least C++17; gracefully disable in AUTO mode if unavailable.
+if (GRPC_DEPS_FOUND AND CXX_STANDARD_USED LESS 17)
+  if (DEFINED ENABLE_GRPC AND ENABLE_GRPC)
+    message(FATAL_ERROR "gRPC modules require at least C++17, but only C++${CXX_STANDARD_USED} support was found.")
+  endif()
+  set(GRPC_DEPS_FOUND OFF)
+endif()
+
+module_switch(ENABLE_GRPC "Enable GRPC modules (requires C++20, or C++17 if C++20 is not available)" GRPC_DEPS_FOUND)
 
 if (ENABLE_GRPC)
-  set (CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard" FORCE)
+  # CXX_STANDARD_USED comes from enable_cpp.cmake (20, 17, or 14)
+  if(CXX_STANDARD_USED GREATER_EQUAL 20)
+    set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ standard" FORCE)
+  else()
+    set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard" FORCE)
+  endif()
   set (CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "C++ standard is a requirement" FORCE)
 
   include(ProtobufGenerateCpp)

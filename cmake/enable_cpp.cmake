@@ -25,22 +25,22 @@
 
 # Expose useful variables:
 #   CXX_STANDARD_FOUND        (TRUE/FALSE)
-#   CXX_STANDARD_USED         (14 or 17)
+#   CXX_STANDARD_USED         (14, 17, or 20)
 #   CXX_STANDARD_OPTION       (the compiler flag string CMake knows about, if any)
 #   SYSLOG_NG_ENABLE_CPP      (ON/OFF)
 # ------------------------------------------------
 #
 # This module enables C++ support
-# It mimics the behavior of Autotools' AX_CXX_COMPILE_STDCXX([14] ... then [17])
+# It mimics the behavior of Autotools' AX_CXX_COMPILE_STDCXX([14] then [17] then [20])
 # likewe have in configure.ac, but it also adds a layer of ENABLE_CPP
 #
 # NOTE: Keep in sync with configure.ac !!!
 #
 
 if(NOT DEFINED ENABLE_CPP)
-  set(AUTO_ENABLE_CPP ON INTERNAL)
+  set(AUTO_ENABLE_CPP ON)
 else()
-  set(AUTO_ENABLE_CPP OFF INTERNAL)
+  set(AUTO_ENABLE_CPP OFF)
 endif()
 
 option(ENABLE_CPP "Enable C++" ON)
@@ -54,9 +54,9 @@ endif()
 
 enable_language(CXX)
 
-# Prefer C++14, allow upgrade to C++17
-# try mirror AX_CXX_COMPILE_STDCXX([14] and [17] if available))
-set(CXX_STANDARDS 17 14)
+# Prefer C++14, allow upgrade to C++17 and then C++20
+# mirrors AX_CXX_COMPILE_STDCXX([14] then [17] then [20] if available)
+set(CXX_STANDARDS 20 17 14)
 set(CXX_STANDARD_FOUND FALSE)
 set(CXX_STANDARD_USED "")
 set(CXX_STANDARD_OPTION "")
@@ -77,17 +77,22 @@ foreach(ver IN LISTS CXX_STANDARDS)
   endif()
 endforeach()
 
-# If we found a usable standard, optionally mimic libtool's "double -std=gnu++14 -std=gnu++17"
+# If we found a usable standard, optionally mimic libtool's double -std= flag injection
 # behavior for GNU compilers so compile-lines look similar to Autotools output.
 # (CMake itself may also add its -std= flag based on CMAKE_CXX_STANDARD/CMAKE_CXX_EXTENSIONS;
 # adding these here mirrors the previous libtool lines where libtool injected both flags.)
 if(CXX_STANDARD_FOUND AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  # Use the CMake-provided extension flag (e.g. CMAKE_CXX20_EXTENSION_COMPILE_OPTION) rather
+  # than constructing "-std=gnu++${ver}" literally: on GCC < 10 the C++20 flag is gnu++2a,
+  # not gnu++20, so hardcoding the version number produces an unrecognized option error.
+  set(_cxx_ext_flag_var "CMAKE_CXX${CXX_STANDARD_USED}_EXTENSION_COMPILE_OPTION")
   if(CXX_STANDARD_USED GREATER 14)
     # prepend lower standard first, then the detected one (libtool-style)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++14 -std=gnu++${CXX_STANDARD_USED}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++14 ${${_cxx_ext_flag_var}}")
   else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++${CXX_STANDARD_USED}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${${_cxx_ext_flag_var}}")
   endif()
+  unset(_cxx_ext_flag_var)
 endif()
 
 # Finalize ENABLE_CPP behavior like Autotools: AUTO enables only if a baseline (C++14) is found.

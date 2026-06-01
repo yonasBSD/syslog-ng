@@ -532,7 +532,7 @@ AC_ARG_WITH(libpaho-mqtt,
     AS_HELP_STRING([--with-libpaho-mqtt=DIR], [use libpaho-mqtt library from (prefix) directory DIR]))
 
 AC_ARG_ENABLE(grpc,
-    AS_HELP_STRING([--enable-grpc], [Enable GRPC based modules support (OpenTelemetry, Loki, BigQuery, Pub/Sub, ClickHouse) (requires C++17) (default: auto)]),
+    AS_HELP_STRING([--enable-grpc], [Enable GRPC based modules support (OpenTelemetry, Loki, BigQuery, Pub/Sub, ClickHouse) (requires C++20) (default: auto)]),
     , enable_grpc="auto")
 
 AC_ARG_WITH(protoc,
@@ -743,7 +743,7 @@ AM_CONDITIONAL([HAVE_PYTHON_INTERPRETER], [test "$PYTHON" != :])
 dnl ***************************************************************************
 dnl C++ support
 dnl NOTE: on macOS brew has an old autoconf-archive -> ax_cxx_compile_stdcxx.m4 version, which cannot detect
-dnl       correctly the c++14 and c++17 support of clang currently, you might want to get the latest one from the git repo
+dnl       correctly the c++14 and c++20 support of clang currently, you might want to get the latest one from the git repo
 dnl       wget -O ./m4/ax_cxx_compile_stdcxx.m4 https://raw.githubusercontent.com/autoconf-archive/autoconf-archive/master/m4/ax_cxx_compile_stdcxx.m4
 AC_PROG_CXX([$CPP_COMPILER])
 
@@ -752,6 +752,14 @@ if test "x$enable_cpp" = "xyes"; then
     AX_CXX_COMPILE_STDCXX([14], [noext], [mandatory])
     # Try to upgrade to C++17 if the compiler supports it
     AX_CXX_COMPILE_STDCXX([17], [noext], [optional])
+    dnl AX_CXX_COMPILE_STDCXX([20]) requires autoconf-archive serial >= 14 (released 2022-02-11).
+    dnl Older system installs lack the [20] dispatch branch and call m4_fatal at macro-expansion
+    dnl time — before any configure shell code runs, so [optional] cannot save us.
+    dnl _AX_CXX_COMPILE_STDCXX_testbody_20 is defined only in serial >= 14, so we use it as a
+    dnl compile-time guard to skip the probe entirely on platforms with an old m4 install.
+    m4_ifdef([_AX_CXX_COMPILE_STDCXX_testbody_20], [
+        AX_CXX_COMPILE_STDCXX([20], [noext], [optional])
+    ])
 
 elif test "x$enable_cpp" = "xauto"; then
     # Prefer C++14, but don't fail if it's missing
@@ -760,6 +768,10 @@ elif test "x$enable_cpp" = "xauto"; then
         enable_cpp=yes
         # Try to upgrade to C++17 if available
         AX_CXX_COMPILE_STDCXX([17], [noext], [optional])
+        dnl See comment above: guard C++20 probe against old autoconf-archive installs.
+        m4_ifdef([_AX_CXX_COMPILE_STDCXX_testbody_20], [
+            AX_CXX_COMPILE_STDCXX([20], [noext], [optional])
+        ])
     else
         enable_cpp=no
     fi
@@ -1925,7 +1937,7 @@ if ! test "x$enable_grpc" = "xno"; then
             if test $ostype = "Darwin"; then
                 # AX[]_CXX_COMPILE_STDCXX format is needed to prevent the text treated as a macro
                 AC_MSG_WARN([On macOS, the Homebrew-provided autoconf-archive contains an outdated version of AX[]_CXX_COMPILE_STDCXX,
-which may incorrectly detect C++14 or C++17 support with clang. This can cause GRPC/C++ configuration to fail.
+which may incorrectly detect C++14 or C++20 support with clang. This can cause GRPC/C++ configuration to fail.
 Recommended fix:
     wget -O ./m4/ax_cxx_compile_stdcxx.m4 https://raw.githubusercontent.com/autoconf-archive/autoconf-archive/master/m4/ax_cxx_compile_stdcxx.m4])
             fi
@@ -1937,8 +1949,21 @@ Recommended fix:
 fi
 
 if ! test "x$enable_grpc" = "xno"; then
-    # gRPC requires at least C++17
-    AX_CXX_COMPILE_STDCXX([17], [noext], [mandatory])
+    # gRPC requires C++20 (preferred) or at least C++17 as a fallback.
+    dnl See comment above: guard C++20 probe against old autoconf-archive installs.
+    m4_ifdef([_AX_CXX_COMPILE_STDCXX_testbody_20], [
+        AX_CXX_COMPILE_STDCXX([20], [noext], [optional])
+    ])
+    if test "x$HAVE_CXX20" != "x1"; then
+        AX_CXX_COMPILE_STDCXX([17], [noext], [optional])
+        if test "x$HAVE_CXX17" != "x1"; then
+            if test "x$enable_grpc" = "xyes"; then
+                AC_MSG_ERROR([gRPC modules require at least C++17, but neither C++17 nor C++20 support was found.])
+            else
+                enable_grpc=no
+            fi
+        fi
+    fi
 fi
 
 # ProtoBuf libraries
