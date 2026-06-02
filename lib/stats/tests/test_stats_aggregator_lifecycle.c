@@ -146,7 +146,9 @@ static void
 _reset_registry(void)
 {
   stats_aggregator_lock();
+  stats_lock();
   stats_aggregator_registry_reset();
+  stats_unlock();
   stats_aggregator_unlock();
 }
 
