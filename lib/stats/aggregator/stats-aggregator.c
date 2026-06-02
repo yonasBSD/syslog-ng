@@ -194,8 +194,16 @@ stats_aggregator_init_instance(StatsAggregator *self, StatsClusterKey *sc_key, g
 void
 stats_aggregator_free(StatsAggregator *self)
 {
+  g_assert(self);
+
+  /* Cancel any armed update_timer before freeing: its cookie points to
+   * self, so a dispatch after free would deref freed memory.
+   * stats_aggregator_unregister() is idempotent and safe to call
+   * regardless of prior register/unregister state. */
+  stats_aggregator_unregister(self);
+
   stats_cluster_key_cloned_free(&self->key);
-  if (self && self->free_fn)
+  if (self->free_fn)
     self->free_fn(self);
   g_free(self);
 }
