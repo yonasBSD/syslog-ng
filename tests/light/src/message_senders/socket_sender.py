@@ -155,6 +155,24 @@ class SocketSender(MessageSender):
                 else:
                     raise
 
+    def close(self):
+        """Close the socket connection."""
+        if self.sock:
+            try:
+                self.sock.close()
+            except Exception:
+                pass
+            self.sock = None
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - ensures socket cleanup."""
+        self.close()
+        return False
+
     def __str__(self):
         """Return string representation of sender type."""
         if self.family == AF_UNIX:

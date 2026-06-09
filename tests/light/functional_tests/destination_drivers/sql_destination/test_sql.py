@@ -180,11 +180,11 @@ log {{ source(s_tcp); destination(d_sql); }};
 
     # Send test messages
     messages = ['sql1', 'sql2']
-    sender = SocketSender(AF_INET, ('localhost', tcp_port), dgram=0)
 
-    expected = []
-    for msg in messages:
-        expected.extend(sender.sendMessages(msg, pri=7))
+    with SocketSender(AF_INET, ('localhost', tcp_port), dgram=0) as sender:
+        expected = []
+        for msg in messages:
+            expected.extend(sender.sendMessages(msg, pri=7))
 
     # Wait for messages to be written to database
     time.sleep(10)
