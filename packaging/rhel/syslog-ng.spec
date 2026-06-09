@@ -46,6 +46,10 @@ Source3: syslog-ng.service
 %bcond_with bpf
 %endif
 
+# Secure logging (slog) is disabled by default in the official RPM
+# packages. Build with `--with slog` to enable it.
+%bcond_with slog
+
 BuildRequires: pkgconfig
 BuildRequires: libtool
 BuildRequires: bison
@@ -364,6 +368,7 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
 %description bpf
 This module provides faster UDP log collection using bpf.
 
+%if %{with slog}
 %package slog
 Summary: $(slog) support for %{name}
 Group: Development/Libraries
@@ -371,6 +376,8 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
 
 %description slog
 This module adds support for the $(slog) template function plus command line utilities.
+
+%endif
 
 %package python
 Summary:        Python support for syslog-ng
@@ -491,7 +498,8 @@ ryslog is not on the system.
     %{?with_amqp:--enable-amqp} \
     %{?with_redis:--enable-redis} \
     %{?with_riemann:--enable-riemann} \
-    %{?with_bpf:--enable-ebpf}
+    %{?with_bpf:--enable-ebpf} \
+    %{?with_slog:--enable-slog} %{!?with_slog:--disable-slog}
 
 # disable broken test by setting a different target
 sed -i 's/libs build/libs assemble/' Makefile
@@ -722,6 +730,7 @@ fi
 %{_libdir}/%{name}/libhttp.so
 %{_libdir}/%{name}/libazure-auth-header.so
 
+%if %{with slog}
 %files slog
 %{_libdir}/%{name}/libsecure-logging.so
 %{_bindir}/slogkey
@@ -731,6 +740,7 @@ fi
 %{_mandir}/man1/slogencrypt.1*
 %{_mandir}/man1/slogverify.1*
 %{_mandir}/man7/secure-logging.7*
+%endif
 
 %files python
 %{_libdir}/%{name}/libmod-python.so

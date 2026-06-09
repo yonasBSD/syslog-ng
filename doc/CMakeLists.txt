@@ -39,15 +39,20 @@ if(ENABLE_MANPAGES)
         loggen.1
         pdbtool.1
         persist-tool.1
-        secure-logging.7
-        slogencrypt.1
-        slogkey.1
-        slogverify.1
         syslog-ng.8
         syslog-ng.conf.5
         syslog-ng-ctl.1
         syslog-ng-debun.1
     )
+
+    if(ENABLE_SLOG)
+        list(APPEND MANPAGES
+            secure-logging.7
+            slogencrypt.1
+            slogkey.1
+            slogverify.1
+        )
+    endif()
 
     if(CMAKE_VERBOSE_MAKEFILE)
         set(SH_OUTPUT1 "")

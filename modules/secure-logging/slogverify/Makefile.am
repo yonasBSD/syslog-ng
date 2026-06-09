@@ -1,8 +1,8 @@
 # File: modules/secure-logging/slogverify/Makefile.am
 
-bin_PROGRAMS += modules/secure-logging/slogverify/slogverify
+if ENABLE_SLOG
 
-EXTRA_DIST += modules/secure-logging/slogverify/CMakeLists.txt
+bin_PROGRAMS += modules/secure-logging/slogverify/slogverify
 
 modules_secure_logging_slogverify_slogverify_SOURCES = \
 	modules/secure-logging/slogverify/slogverify.c
@@ -16,3 +16,7 @@ modules_secure_logging_slogverify_slogverify_LDADD = \
 	$(top_builddir)/lib/libsyslog-ng.la \
 	$(top_builddir)/modules/secure-logging/libsyslog-ng-secure-logging.la \
 	@TOOL_DEPS_LIBS@
+
+endif
+
+EXTRA_DIST += modules/secure-logging/slogverify/CMakeLists.txt

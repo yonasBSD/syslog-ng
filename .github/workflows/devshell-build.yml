@@ -109,6 +109,7 @@ jobs:
             --enable-tests
             --enable-jemalloc=auto
             --enable-all-modules
+            --enable-slog
             --with-python=3
             --with-ivykis=internal
             --disable-java
@@ -126,6 +127,7 @@ jobs:
             -DENABLE_JEMALLOC=AUTO
             -DPYTHON_VERSION=3
             -DIVYKIS_SOURCE=internal
+            -DENABLE_SLOG=ON
             -DENABLE_JAVA=OFF
             -DENABLE_JAVA_MODULES=OFF
             -DENABLE_STACKDUMP=ON

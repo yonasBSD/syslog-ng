@@ -87,6 +87,15 @@ else
 BPF_CONFIGURE_OPTS = --enable-ebpf
 endif
 
+# Secure logging (slog) is disabled by default in the official Debian
+# packages. Build with `--build-profiles=sng-slog` to enable it.
+ifneq ($(filter sng-slog,$(DEB_BUILD_PROFILES)),)
+SLOG_CONFIGURE_OPTS = --enable-slog
+else
+DH_OPTIONS += -Nsyslog-ng-mod-slog
+SLOG_CONFIGURE_OPTS = --disable-slog
+endif
+
 # If DH_QUIET is set, then we want silent mode.
 # If DH_VERBOSE is set, we do not want silent mode.
 # If neither is set, we want the default: verbose mode.
@@ -153,6 +162,7 @@ override_dh_auto_configure:
 		--enable-mqtt=auto \
 		--enable-grpc=auto \
 		$(BPF_CONFIGURE_OPTS) \
+		$(SLOG_CONFIGURE_OPTS) \
 		--enable-cloud-auth=auto \
 		--disable-stackdump \
 		\

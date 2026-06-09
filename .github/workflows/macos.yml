@@ -231,6 +231,7 @@ jobs:
             --with-python=3
             --with-ivykis=internal
             --with-systemd-journal=no
+            --enable-slog
             --disable-java
             --disable-java-modules
           "
@@ -245,6 +246,7 @@ jobs:
             -DENABLE_JEMALLOC=ON
             -DPYTHON_VERSION=3
             -DIVYKIS_SOURCE=internal
+            -DENABLE_SLOG=ON
             -DENABLE_JOURNALD=OFF
             -DENABLE_JAVA=OFF
             -DENABLE_JAVA_MODULES=OFF

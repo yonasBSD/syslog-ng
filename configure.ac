@@ -489,6 +489,10 @@ AC_ARG_ENABLE(ebpf,
     AS_HELP_STRING([--enable-ebpf], [Enable support for loading of eBPF programs (default: no)]),
     , enable_ebpf="no")
 
+AC_ARG_ENABLE(slog,
+    AS_HELP_STRING([--enable-slog], [Enable secure logging (slog) module and CLI tools from Airbus (default: no)]),
+    , enable_slog="no")
+
 AC_ARG_ENABLE(gcov,
     AS_HELP_STRING([--enable-gcov], [Enable coverage profiling (default: no)]),
     , enable_gcov="no")
@@ -676,7 +680,7 @@ if test "x$enable_all_modules" != "xauto"; then
    # TODO: atomate collection of modules somehow
    MODULES="spoof_source sun_streams sql pacct mongodb json amqp stomp \
             redis systemd geoip2 riemann ipv6 smtp native python python_modules java java_modules \
-            http afsnmp kafka mqtt grpc"
+            http afsnmp kafka mqtt grpc ebpf slog"
    for mod in ${MODULES}; do
        modstate=$(eval echo \$enable_${mod})
        if test "x$modstate" = "xauto"; then
@@ -2750,6 +2754,7 @@ AM_CONDITIONAL(ENABLE_SUN_STREAMS, [test "$enable_sun_streams" = "yes"])
 AM_CONDITIONAL(ENABLE_DARWIN_OSL, [test "$enable_darwin_osl" = "yes"])
 AM_CONDITIONAL(ENABLE_OPENBSD_SYSTEM_SOURCE, [test "$enable_openbsd_system_source" = "yes"])
 AM_CONDITIONAL(ENABLE_EBPF, [test "$enable_ebpf" = "yes"])
+AM_CONDITIONAL(ENABLE_SLOG, [test "$enable_slog" = "yes"])
 AM_CONDITIONAL(ENABLE_PACCT, [test "$enable_pacct" = "yes"])
 AM_CONDITIONAL(ENABLE_MONGODB, [test "$enable_mongodb" = "yes"])
 AM_CONDITIONAL(ENABLE_SMTP, [test "$enable_smtp" = "yes"])
@@ -2987,30 +2992,31 @@ fi
 
 print_heading "Modules"
 print_config_line "Module search path" "$module_path"
-print_config_line "Sun STREAMS support (module)" "${enable_sun_streams:=no}"
-print_config_line "Darwin OSL support (module)" "${enable_darwin_osl:=no}"
-print_config_line "OpenBSD syslog (module)" "${enable_openbsd_system_source:=no}"
-print_config_line "SQL support (module)" "${enable_sql:=no}"
-print_config_line "PACCT module (EXPERIMENTAL)" "${enable_pacct:=no}"
-print_config_line "MongoDB destination (module)" "${enable_mongodb:=no} (${mongo_version_str})"
-print_config_line "JSON support (module)" "${enable_json:=no}"
-print_config_line "SMTP support (module)" "${enable_smtp:=no}"
-print_config_line "HTTP support (module)" "${enable_http:=no}"
+print_config_line "afsnmp support (module)" "${enable_afsnmp:=no}"
 print_config_line "AMQP destination (module)" "${enable_amqp:=no}"
-print_config_line "STOMP destination (module)" "${enable_stomp:=no}"
-print_config_line "MQTT (module)" "${enable_mqtt:=no}"
-print_config_line "GRPC (module)" "${enable_grpc:=no}" "$grpc_warning_str"
 print_config_line "Cloud Auth (module)" "${enable_cloud_auth:=no}"
+print_config_line "eBPF support (module)" "${enable_ebpf:=no}"
+print_config_line "Darwin OSL support (module)" "${enable_darwin_osl:=no}"
 print_config_line "GEOIP2 support (module)" "${enable_geoip2:=no}"
-print_config_line "Redis support (module)" "${enable_redis:=no}"
+print_config_line "GRPC (module)" "${enable_grpc:=no}" "$grpc_warning_str"
+print_config_line "HTTP support (module)" "${enable_http:=no}"
+print_config_line "JSON support (module)" "${enable_json:=no}"
 print_config_line "Kafka support (module)" "${enable_kafka:=no}"
+print_config_line "MongoDB destination (module)" "${enable_mongodb:=no} (${mongo_version_str})"
+print_config_line "MQTT support (module)" "${enable_mqtt:=no}"
+print_config_line "OpenBSD syslog (module)" "${enable_openbsd_system_source:=no}"
+print_config_line "PACCT (module) (EXPERIMENTAL)" "${enable_pacct:=no}"
+print_config_line "Redis support (module)" "${enable_redis:=no}"
 print_config_line "Riemann destination (module)" "${enable_riemann:=no}, microseconds: ${riemann_micros:=no}"
+print_config_line "Secure logging - slog (module)" "${enable_slog:=no}"
+print_config_line "SMTP support (module)" "${enable_smtp:=no}"
+print_config_line "SQL support (module)" "${enable_sql:=no}"
+print_config_line "STOMP destination (module)" "${enable_stomp:=no}"
+print_config_line "Sun STREAMS support (module)" "${enable_sun_streams:=no}"
 print_config_line "Python" "${enable_python:=no} (pkg-config package: ${with_python:=none}, packages: ${with_python_packages})"
 print_config_line "Python modules" "${enable_python_modules:=no}"
 print_config_line "Java" "${enable_java:=no}"
 print_config_line "Java modules" "${enable_java_modules:=no}"
-print_config_line "afsnmp module" "${enable_afsnmp:=no}"
-print_config_line "eBPF module" "${enable_ebpf:=no}"
-print_config_line "native bindings" "${enable_native:=no}"
+print_config_line "Native bindings" "${enable_native:=no}"
 print_config_line "Example modules" "${enable_example_modules:=yes}"
 print_heading ""
