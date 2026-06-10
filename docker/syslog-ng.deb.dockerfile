@@ -76,18 +76,36 @@ RUN ARCH=$(arch) && \
     *.xz)  CAT=xzcat ;; \
     *)     CAT=cat ;; \
   esac && \
-  SYSLOG_PKGS="$($CAT "$OSE_PKGS_FILE" \
-      | awk '/^Package: / { print $2 }' \
+  # Materialise (name, version) pairs from the OSE Packages index once so
+  # we can resolve a single target version and filter the subpackage set
+  # against it. Pinning the whole set to a single version is required
+  # because nightly builds occasionally don't republish every subpackage
+  # in lock-step (e.g. when a module is added / removed / temporarily
+  # skipped). The strict `Depends: syslog-ng (= <ver>)` of any stale
+  # leftover would otherwise drag in a mismatched base package and make
+  # apt's resolution unsatisfiable.
+  ALL_PKGS="$($CAT "$OSE_PKGS_FILE" | awk 'BEGIN { RS=""; FS="\n" } { name=""; version=""; for (i=1;i<=NF;i++) { if ($i ~ /^Package: /) name=substr($i,10); if ($i ~ /^Version: /) version=substr($i,10) } if (name!="" && version!="") print name " " version }')" && \
+  if [ -n "$PACKAGE_VERSION" ]; then \
+    RESOLVED_VERSION="$PACKAGE_VERSION"; \
+    echo "Installing locked syslog-ng version: $RESOLVED_VERSION"; \
+  else \
+    RESOLVED_VERSION="$(echo "$ALL_PKGS" | awk '$1 == "syslog-ng" { print $2 }' | sort -V -r | head -n1)"; \
+    [ -n "$RESOLVED_VERSION" ] || { echo "ERROR: could not resolve newest syslog-ng version from OSE Packages index" >&2; exit 1; }; \
+    echo "Installing newest syslog-ng version: $RESOLVED_VERSION"; \
+  fi && \
+  # Enumerate the base package + every syslog-ng-mod-* package that
+  # exists at the resolved version. Java-related modules (java,
+  # java-common-lib, hdfs) are excluded to keep the image lean — pulling
+  # OpenJDK would roughly double the image size. Modules without a build
+  # at the resolved version (e.g. ones intentionally dropped this round)
+  # are simply not enumerated, which is the correct behaviour.
+  SYSLOG_PKGS="$(echo "$ALL_PKGS" \
+      | awk -v ver="$RESOLVED_VERSION" '$2 == ver { print $1 }' \
       | grep -E '^(syslog-ng|syslog-ng-mod-.*)$' \
       | grep -Ev '^syslog-ng-mod-(java|java-common-lib|hdfs)$' \
       | sort -u)" && \
-  if [ -z "$SYSLOG_PKGS" ]; then echo "ERROR: no syslog-ng packages found in OSE Packages index" >&2; exit 1; fi && \
-  if [ -n "$PACKAGE_VERSION" ]; then \
-    echo "Installing locked syslog-ng version: $PACKAGE_VERSION"; \
-    SYSLOG_PKGS="$(echo "$SYSLOG_PKGS" | sed "s/\$/=${PACKAGE_VERSION}/")"; \
-  else \
-    echo "Installing latest syslog-ng version (all modules)"; \
-  fi && \
+  if [ -z "$SYSLOG_PKGS" ]; then echo "ERROR: no syslog-ng packages found at version $RESOLVED_VERSION in OSE Packages index" >&2; exit 1; fi && \
+  SYSLOG_PKGS="$(echo "$SYSLOG_PKGS" | sed "s/\$/=${RESOLVED_VERSION}/")" && \
   apt-get install -y \
     libdbd-mysql libdbd-pgsql libdbd-sqlite3 libjemalloc2 \
     $SYSLOG_PKGS \

@@ -86,22 +86,38 @@ RUN set -eu -o pipefail && \
     OSE_REPO_ID="$(grep -oE '^\[[^]]+\]' /etc/yum.repos.d/syslog-ng-ose.repo | head -n1 | tr -d '[]')" && \
     [ -n "$OSE_REPO_ID" ] || { echo "ERROR: could not determine OSE repo id" >&2; exit 1; } && \
     echo "Using OSE repo id: $OSE_REPO_ID" && \
-    # Enumerate the base package + every published syslog-ng-* subpackage so
-    # the image ships with all available modules. -devel / -debug* are
-    # excluded (build-time / debugging artefacts, not runtime). The java
-    # subpackage is also excluded to keep the image lean — pulling OpenJDK
-    # would roughly double the image size.
-    SYSLOG_PKGS="$(dnf -q repoquery --repo="$OSE_REPO_ID" --queryformat='%{name}\n' 'syslog-ng' 'syslog-ng-*' \
+    # Resolve the exact EVR to install. If the caller pinned PACKAGE_VERSION,
+    # honour it; otherwise lock onto the newest EVR of the base `syslog-ng`
+    # package currently in the repo. Pinning the entire subpackage set to a
+    # single EVR is required because nightly builds occasionally don't
+    # republish every subpackage in lock-step (e.g. when a subpackage is
+    # added / removed / temporarily skipped). The strict
+    # `Requires: syslog-ng(x86-64) = <EVR>` of any stale leftover would then
+    # drag in a mismatched base package and make the transaction
+    # unresolvable. Always pinning side-steps that entirely.
+    if [ -n "${PACKAGE_VERSION:-}" ]; then \
+        RESOLVED_VERSION="${PACKAGE_VERSION}"; \
+        echo "Installing locked syslog-ng version: ${RESOLVED_VERSION}"; \
+    else \
+        RESOLVED_VERSION="$(dnf -q repoquery --repo="$OSE_REPO_ID" --latest-limit=1 \
+            --queryformat='%{evr}\n' 'syslog-ng' | head -n1)"; \
+        [ -n "$RESOLVED_VERSION" ] || { echo "ERROR: could not resolve newest syslog-ng EVR from OSE repo" >&2; exit 1; }; \
+        echo "Installing newest syslog-ng version: ${RESOLVED_VERSION}"; \
+    fi && \
+    # Enumerate the base package + every syslog-ng-* subpackage that exists
+    # at the resolved EVR. -devel / -debug* are excluded (build-time /
+    # debugging artefacts, not runtime). The java subpackage is also
+    # excluded to keep the image lean — pulling OpenJDK would roughly
+    # double the image size. Subpackages that don't have a build at the
+    # resolved EVR (e.g. ones intentionally dropped this round) are simply
+    # not enumerated, which is the correct behaviour.
+    SYSLOG_PKGS="$(dnf -q repoquery --repo="$OSE_REPO_ID" --queryformat='%{name} %{evr}\n' 'syslog-ng' 'syslog-ng-*' \
+        | awk -v ver="$RESOLVED_VERSION" '$2 == ver { print $1 }' \
         | grep -Ev -- '-(devel|debuginfo|debugsource)$' \
         | grep -Ev '^syslog-ng-java$' \
         | sort -u)" && \
-    if [ -z "$SYSLOG_PKGS" ]; then echo "ERROR: no syslog-ng packages found in OSE repo" >&2; exit 1; fi && \
-    if [ -n "${PACKAGE_VERSION:-}" ]; then \
-        echo "Installing locked syslog-ng version: ${PACKAGE_VERSION}"; \
-        SYSLOG_PKGS="$(echo "$SYSLOG_PKGS" | sed "s/\$/-${PACKAGE_VERSION}/")"; \
-    else \
-        echo "Installing latest syslog-ng version (all modules)"; \
-    fi && \
+    if [ -z "$SYSLOG_PKGS" ]; then echo "ERROR: no syslog-ng packages found at EVR ${RESOLVED_VERSION} in OSE repo" >&2; exit 1; fi && \
+    SYSLOG_PKGS="$(echo "$SYSLOG_PKGS" | sed "s/\$/-${RESOLVED_VERSION}/")" && \
     dnf -y install --setopt=install_weak_deps=False \
         $SYSLOG_PKGS jemalloc && \
     # dnf-plugins-core was only needed to flip CRB on; drop it again so it
