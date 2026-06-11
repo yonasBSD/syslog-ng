@@ -38,17 +38,23 @@ manpages	= \
 		doc/man/syslog-ng-debun.1
 
 slog_manpages	= \
-		doc/man/secure-logging.7 \
 		doc/man/slogencrypt.1 \
 		doc/man/slogkey.1 \
 		doc/man/slogverify.1
+
+# secure-logging.7 is installed via a custom _DATA primary: routing a `.7`
+# file through man_MANS makes automake emit an unconditional install-man7
+# whose MKDIR_P fires whenever man_MANS is non-empty, leaving an empty
+# share/man/man7/ behind when slog is disabled.
+slog_man7_files	= \
+		doc/man/secure-logging.7
 
 if ENABLE_SLOG
 manpages += $(slog_manpages)
 endif
 
 # "dist" will always need the manpages (slog ones included)
-EXTRA_DIST += $(manpages)
+EXTRA_DIST += $(manpages) $(slog_man7_files)
 if ENABLE_SLOG
 else
 EXTRA_DIST += $(slog_manpages)
@@ -56,6 +62,13 @@ endif
 
 if ENABLE_MANPAGES_INSTALL
 man_MANS += $(manpages)
+endif
+
+slog_man7dir = $(mandir)/man7
+if ENABLE_MANPAGES_INSTALL
+if ENABLE_SLOG
+slog_man7_DATA = $(slog_man7_files)
+endif
 endif
 
 if ENABLE_MANPAGES
@@ -83,11 +96,11 @@ doc/man/.updated: $(top_srcdir)/doc/man/update-manpages.sh doc/man/.prep
 	$(AM_V_at)touch $@
 
 # 3) Any concrete manpage depends on the updated stamp
-$(manpages) $(slog_manpages): doc/man/.updated
+$(manpages) $(slog_manpages) $(slog_man7_files): doc/man/.updated
 
 # 4) all-local should ensure the update is done
 all-local: doc/man/.updated
 
-CLEANFILES += $(manpages) $(slog_manpages) doc/man/.prep doc/man/.updated
+CLEANFILES += $(manpages) $(slog_manpages) $(slog_man7_files) doc/man/.prep doc/man/.updated
 
 endif
