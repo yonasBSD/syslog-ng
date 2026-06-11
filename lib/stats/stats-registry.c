@@ -41,7 +41,7 @@ _number_of_dynamic_clusters(void)
 }
 
 static GMutex stats_mutex;
-gboolean stats_locked;
+static gboolean stats_locked;
 
 static void
 _insert_cluster(StatsCluster *sc)
@@ -64,6 +64,13 @@ stats_unlock(void)
 {
   stats_locked = FALSE;
   g_mutex_unlock(&stats_mutex);
+}
+
+gboolean
+stats_is_locked(gboolean assert)
+{
+  g_assert(!assert || stats_locked);
+  return stats_locked;
 }
 
 static StatsCluster *

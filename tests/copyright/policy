@@ -109,6 +109,7 @@ lib/stats/stats-prometheus\.c
 lib/stats/stats-prometheus\.h
 lib/stats/stats-compat\.h
 lib/stats/tests/test_stats_prometheus\.c
+lib/stats/tests/test_stats_aggregator_lifecycle\.c
 lib/stats/tests/test_stats_cluster_key_builder\.c
 lib/timeutils/timeutils\.h
 lib/stackdump\.[ch]

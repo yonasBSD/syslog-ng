@@ -46,11 +46,18 @@ _reset_counter_if_needed(StatsCluster *sc, gint type, StatsCounterItem *counter,
 static void
 _reset_counters(void)
 {
-  stats_lock();
-  stats_foreach_counter(_reset_counter_if_needed, NULL, NULL);
-  stats_unlock();
+  /* Hold both locks for the whole reset so counter writes and aggregator
+   * re-arms appear atomic to readers and to concurrent registrations.
+   * Order matches the rest of the codebase: aggregator outer, stats inner
+   * (see stats-change-per-second.c and stats-aggregator.c register paths).
+   */
   stats_aggregator_lock();
+  stats_lock();
+
+  stats_foreach_counter(_reset_counter_if_needed, NULL, NULL);
   stats_aggregator_registry_reset();
+
+  stats_unlock();
   stats_aggregator_unlock();
 }
 
